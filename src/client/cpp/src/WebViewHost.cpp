@@ -1,12 +1,73 @@
 #include "MCDevConsole/WebViewHost.h"
 #include "MCDevConsole/AppWindow.h"
-
+ 
 #include <shellapi.h>
 #include <wrl/event.h>
 #include <windows.h>
 #include <string>
+#include <vector>
 
 namespace MCDevConsole {
+namespace {
+
+std::wstring ExtractJsonStringField(const std::wstring& json, const wchar_t* key) {
+    const std::wstring needle = std::wstring(L"\"") + key + L"\":\"";
+    const std::size_t start = json.find(needle);
+    if (start == std::wstring::npos) {
+        return {};
+    }
+
+    std::wstring result;
+    bool escaping = false;
+    for (std::size_t i = start + needle.size(); i < json.size(); ++i) {
+        const wchar_t ch = json[i];
+        if (escaping) {
+            switch (ch) {
+            case L'n': result.push_back(L'\n'); break;
+            case L'r': result.push_back(L'\r'); break;
+            case L't': result.push_back(L'\t'); break;
+            case L'\\': result.push_back(L'\\'); break;
+            case L'"': result.push_back(L'"'); break;
+            default: result.push_back(ch); break;
+            }
+            escaping = false;
+            continue;
+        }
+
+        if (ch == L'\\') {
+            escaping = true;
+            continue;
+        }
+
+        if (ch == L'"') {
+            break;
+        }
+
+        result.push_back(ch);
+    }
+    return result;
+}
+
+std::string WideToUtf8(const std::wstring& value) {
+    if (value.empty()) {
+        return {};
+    }
+
+    const int required = WideCharToMultiByte(CP_UTF8, 0, value.c_str(), static_cast<int>(value.size()), nullptr, 0, nullptr, nullptr);
+    if (required <= 0) {
+        return std::string(value.begin(), value.end());
+    }
+
+    std::string result(static_cast<std::size_t>(required), '\0');
+    WideCharToMultiByte(CP_UTF8, 0, value.c_str(), static_cast<int>(value.size()), &result[0], required, nullptr, nullptr);
+    return result;
+}
+
+} // namespace
+
+void WebViewHost::SetNetworkServer(NetworkServer* network_server) noexcept {
+    network_server_ = network_server;
+}
 
 bool WebViewHost::Initialize(HWND parent_window) {
     parent_window_ = parent_window;
@@ -101,11 +162,26 @@ bool WebViewHost::Initialize(HWND parent_window) {
                                 return S_OK;
                             }
 
-                            // 简单回显测试：收到前端消息后回传确认
-                            std::wstring response = L"{\"kind\":\"host.echo\",\"received\":true,\"original\":";
-                            response += message;
-                            response += L"}";
-                            PostJsonMessage(response);
+                            if (message.find(L"\"kind\":\"web.command\"") != std::wstring::npos
+                                && message.find(L"\"kind\":\"exec.python\"") != std::wstring::npos) {
+                                const std::wstring session_id = ExtractJsonStringField(message, L"sessionId");
+                                const std::wstring target = ExtractJsonStringField(message, L"target");
+                                const std::wstring code = ExtractJsonStringField(message, L"code");
+
+                                if (network_server_ != nullptr && !session_id.empty() && !code.empty()) {
+                                    const std::uint16_t type_id =
+                                        target == L"server" ? Protocol::TYPE_EXEC_SERVER : Protocol::TYPE_EXEC_CLIENT;
+                                    network_server_->SendExecCommand(
+                                        WideToUtf8(session_id),
+                                        type_id,
+                                        WideToUtf8(code));
+                                }
+                                return S_OK;
+                            }
+
+                            if (message.find(L"\"kind\":\"web.ready\"") != std::wstring::npos) {
+                                return S_OK;
+                            }
                         }
 
                         return S_OK;
@@ -209,6 +285,17 @@ void WebViewHost::NavigateToFile(const std::wstring& file_path) const {
 }
 
 void WebViewHost::PostJsonMessage(const std::wstring& json) const {
+    if (parent_window_ == nullptr) {
+        return;
+    }
+
+    auto* payload = new std::wstring(json);
+    if (!PostMessageW(parent_window_, AppWindow::kMessageDispatchWebMessage, 0, reinterpret_cast<LPARAM>(payload))) {
+        delete payload;
+    }
+}
+
+void WebViewHost::PostJsonMessageNow(const std::wstring& json) const {
     if (!webview_) {
         return;
     }

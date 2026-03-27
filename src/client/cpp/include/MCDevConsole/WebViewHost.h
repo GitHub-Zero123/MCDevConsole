@@ -6,6 +6,8 @@
 
 #include <WebView2.h>
 
+#include "MCDevConsole/NetworkServer.h"
+
 namespace MCDevConsole {
 
 class WebViewHost {
@@ -18,16 +20,19 @@ public:
     ~WebViewHost() = default;
 
     bool Initialize(HWND parent_window);
+    void SetNetworkServer(NetworkServer* network_server) noexcept;
     void ResizeToClientArea() const;
     void NavigateToString(const std::wstring& html) const;
     void NavigateToFile(const std::wstring& file_path) const;
     void PostJsonMessage(const std::wstring& json) const;
+    void PostJsonMessageNow(const std::wstring& json) const;
     void SetBackgroundColor(COLORREF color) const;
 
     [[nodiscard]] bool IsReady() const noexcept;
 
 private:
     HWND parent_window_ = nullptr;
+    NetworkServer* network_server_ = nullptr;
     Microsoft::WRL::ComPtr<ICoreWebView2Controller> controller_;
     Microsoft::WRL::ComPtr<ICoreWebView2> webview_;
 };

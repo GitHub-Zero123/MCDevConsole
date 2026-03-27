@@ -3,6 +3,7 @@
 #include <memory>
 #include <windows.h>
 
+#include "MCDevConsole/NetworkServer.h"
 #include "MCDevConsole/WebViewHost.h"
 
 namespace MCDevConsole {
@@ -10,13 +11,14 @@ namespace MCDevConsole {
 class AppWindow {
 public:
     static constexpr UINT kMessageSetTitleBarColor = WM_APP + 1;
+    static constexpr UINT kMessageDispatchWebMessage = WM_APP + 2;
 
     AppWindow() = default;
     AppWindow(const AppWindow&) = delete;
     AppWindow& operator=(const AppWindow&) = delete;
     AppWindow(AppWindow&&) = delete;
     AppWindow& operator=(AppWindow&&) = delete;
-    ~AppWindow() = default;
+    ~AppWindow();
 
     bool Create(HINSTANCE instance, int show_command);
     int MessageLoop() const;
@@ -45,6 +47,7 @@ private:
     std::unique_ptr<WebViewHost> webview_host_;
     COLORREF titlebar_color_ = RGB(0x1a, 0x1a, 0x1a);  // 默认深色主题
     HBRUSH background_brush_ = nullptr;
+    std::unique_ptr<NetworkServer> network_server_;
 };
 
 } // namespace MCDevConsole

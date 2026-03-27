@@ -191,12 +191,14 @@
       background: rgba(0, 0, 0, 0.1);
     }
 
-    .titlebar__button.close:hover {
+    .titlebar__button.close:hover,
+    :root[data-theme="light"] .titlebar__button.close:hover {
       background: #ef4444;
       color: white;
     }
 
-    .titlebar__button.close:active {
+    .titlebar__button.close:active,
+    :root[data-theme="light"] .titlebar__button.close:active {
       background: #dc2626;
       color: white;
     }
@@ -758,7 +760,7 @@
               <h2 class="section-title">日志面板</h2>
               <div class="panel__meta" id="active-device-text">当前会话：未选择客户端</div>
             </div>
-            <div class="panel__meta" id="stats">日志缓存：0 / 10000</div>
+            <div class="panel__meta" id="stats">日志缓存：0 / 2000</div>
           </div>
           <div class="logs" id="logs"></div>
         </div>
@@ -806,19 +808,14 @@
 
   <script>
     const themeKey = 'mcdevconsole.theme';
-    const maxLogs = 10000;
-    const cleanupCount = 2500;
+    const maxLogs = 2000;
+    const cleanupCount = 500;
     const maxVisibleLogs = 500;
     const logs = [];
     const deviceMap = new Map();
     let activeDeviceId = null;
     let renderScheduled = false;
     let deviceRenderScheduled = false;
-
-    const initialDevices = [
-      { id: 'device-1', name: '示例设备 A', online: true, endpoint: '192.168.1.23:19199', platform: 'Windows' },
-      { id: 'device-2', name: '示例设备 B', online: false, endpoint: '192.168.1.30:19199', platform: 'Android' }
-    ];
 
     const bridge = {
       available: Boolean(window.chrome && window.chrome.webview),
@@ -982,11 +979,6 @@
         </button>
       `).join('');
 
-      Array.from(container.querySelectorAll('[data-device-id]')).forEach((element) => {
-        element.addEventListener('click', () => {
-          setActiveDevice(element.getAttribute('data-device-id'));
-        });
-      });
     }
 
     function scheduleDeviceRender() {
@@ -1028,7 +1020,7 @@
         ? `当前会话：${device.name || device.id} (${device.endpoint || '未知端点'})`
         : '当前会话：未选择客户端';
 
-      document.getElementById('stats').textContent = `日志缓存：${logs.length} / ${maxLogs}`;
+      document.getElementById('stats').textContent = `日志缓存：${deviceLogs.length} / ${maxLogs}`;
 
       if (!device) {
         container.innerHTML = '<div class="empty">请选择左侧客户端会话</div>';
@@ -1053,22 +1045,24 @@
       }
     }
 
-    function trimLogsIfNeeded() {
-      if (logs.length <= maxLogs) {
+    function trimLogsIfNeeded(device) {
+      if (!device || device.logs.length <= maxLogs) {
         return;
       }
 
-      logs.splice(0, cleanupCount);
-      for (const device of deviceMap.values()) {
-        if (device.logs.length > maxLogs) {
-          device.logs.splice(0, cleanupCount);
-        }
-      }
+      device.logs.splice(0, cleanupCount);
     }
 
-    function addLog(level, message, deviceId = activeDeviceId || 'device-1') {
+    function addLog(level, message, deviceId = activeDeviceId, time = '') {
+      if (!deviceId || !deviceMap.has(deviceId)) {
+        console.info('[MCDevConsole][orphan-log]', { level, message, deviceId, time });
+        const activeLogs = getActiveDevice()?.logs?.length || 0;
+        document.getElementById('stats').textContent = `日志缓存：${activeLogs} / ${maxLogs}`;
+        return;
+      }
+
       const entry = {
-        time: new Date().toLocaleTimeString(),
+        time: time || new Date().toLocaleTimeString(),
         level,
         message: typeof message === 'string' ? message : JSON.stringify(message)
       };
@@ -1080,21 +1074,20 @@
         online: existingDevice?.online ?? true,
         endpoint: existingDevice?.endpoint || '未知端点',
         platform: existingDevice?.platform || 'Unknown',
-        lastSeen: new Date().toLocaleTimeString()
+        lastSeen: time || new Date().toLocaleTimeString()
       });
 
+      device.lastSeen = time || new Date().toLocaleTimeString();
       logs.push(entry);
       device.logs.push(entry);
-      trimLogsIfNeeded();
+      trimLogsIfNeeded(device);
+      scheduleDeviceRender();
 
-      if (!existingDevice) {
-        scheduleDeviceRender();
-      }
-
-      if (deviceId === activeDeviceId || (!activeDeviceId && deviceId === 'device-1')) {
+      if (deviceId === activeDeviceId) {
         scheduleLogRender();
       } else {
-        document.getElementById('stats').textContent = `日志缓存：${logs.length} / ${maxLogs}`;
+        const activeLogs = getActiveDevice()?.logs?.length || 0;
+        document.getElementById('stats').textContent = `日志缓存：${activeLogs} / ${maxLogs}`;
       }
     }
 
@@ -1177,7 +1170,16 @@
 
       switch (message.kind) {
         case 'log': {
-          addLog(message.level || 'INFO', message.message || '', message.sessionId || activeDeviceId || 'device-1');
+          const targetSessionId = message.sessionId || activeDeviceId;
+          if (!targetSessionId) {
+            return;
+          }
+          addLog(
+            message.level || 'INFO',
+            message.message || '',
+            targetSessionId,
+            message.time || ''
+          );
           break;
         }
         case 'device.upsert': {
@@ -1208,11 +1210,15 @@
           break;
         }
         case 'hello': {
-          addLog('INFO', `宿主握手成功：${message.message || 'MCDevConsole Host Ready'}`);
+          console.info('[MCDevConsole]', message.message || 'MCDevConsole Host Ready');
+          break;
+        }
+        case 'host.echo': {
+          console.info('[MCDevConsole]', message);
           break;
         }
         default: {
-          addLog('INFO', `收到宿主消息：${JSON.stringify(message)}`);
+          console.info('[MCDevConsole] 未处理宿主消息', message);
           break;
         }
       }
@@ -1228,10 +1234,16 @@
         return;
       }
 
+      const sessionId = device?.id || activeDeviceId;
+      if (!sessionId) {
+        addLog('WARN', '执行已取消：当前没有可用客户端会话');
+        return;
+      }
+
       const payload = {
         kind: 'exec.python',
         target,
-        sessionId: device?.id || activeDeviceId || 'device-1',
+        sessionId,
         code: text
       };
 
@@ -1274,19 +1286,9 @@
     function bootstrap() {
       applyTheme(localStorage.getItem(themeKey) || 'dark');
 
-      initialDevices.forEach((device) => ensureDevice({
-        ...device,
-        logs: [],
-        lastSeen: device.online ? new Date().toLocaleTimeString() : '历史会话'
-      }));
-
       renderDevices();
       renderLogs();
       updateBridgeStatus();
-
-      addLog('INFO', 'MCDevConsole 前端已启动', 'device-1');
-      addLog('INFO', '主题设置保存在 localStorage', 'device-1');
-      addLog('INFO', '日志采用内存缓存，超过 10000 条后自动清理 25%', 'device-1');
 
       document.getElementById('github-link').addEventListener('click', () => {
         const delivered = bridge.post({
@@ -1302,6 +1304,14 @@
       document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
       document.getElementById('send-command').addEventListener('click', sendCommandToHost);
       document.getElementById('composer-toggle').addEventListener('click', toggleComposerPanel);
+
+      document.getElementById('device-list').addEventListener('click', (event) => {
+        const button = event.target.closest('[data-device-id]');
+        if (!button) {
+          return;
+        }
+        setActiveDevice(button.getAttribute('data-device-id'));
+      });
 
       document.querySelectorAll('.composer__target-button').forEach((button) => {
         button.addEventListener('click', (event) => {

@@ -7,6 +7,13 @@
 
 namespace MCDevConsole {
 
+AppWindow::~AppWindow() {
+    if (network_server_) {
+        network_server_->Stop();
+        network_server_.reset();
+    }
+}
+
 bool AppWindow::Create(HINSTANCE instance, int show_command) {
     instance_ = instance;
 
@@ -59,6 +66,14 @@ bool AppWindow::Create(HINSTANCE instance, int show_command) {
     webview_host_ = std::make_unique<WebViewHost>();
     if (!webview_host_->Initialize(hwnd_)) {
         webview_host_.reset();
+        return false;
+    }
+
+    network_server_ = std::make_unique<NetworkServer>();
+    webview_host_->SetNetworkServer(network_server_.get());
+    if (!network_server_->Start(webview_host_.get())) {
+        webview_host_->SetNetworkServer(nullptr);
+        network_server_.reset();
     }
 
     return true;
@@ -243,6 +258,14 @@ LRESULT AppWindow::HandleMessage(UINT message, WPARAM w_param, LPARAM l_param) {
     case kMessageSetTitleBarColor:
         SetTitleBarColor(static_cast<COLORREF>(l_param));
         return 0;
+    case kMessageDispatchWebMessage: {
+        auto* payload = reinterpret_cast<std::wstring*>(l_param);
+        if (payload != nullptr && webview_host_) {
+            webview_host_->PostJsonMessageNow(*payload);
+        }
+        delete payload;
+        return 0;
+    }
     case WM_NCHITTEST: {
         // 最大化状态下不需要边框缩放
         if (IsZoomed(hwnd_)) {
@@ -301,6 +324,13 @@ LRESULT AppWindow::HandleMessage(UINT message, WPARAM w_param, LPARAM l_param) {
         }
         return 0;
     case WM_DESTROY:
+        if (webview_host_) {
+            webview_host_->SetNetworkServer(nullptr);
+        }
+        if (network_server_) {
+            network_server_->Stop();
+            network_server_.reset();
+        }
         PostQuitMessage(0);
         return 0;
     default:

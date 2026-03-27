@@ -23,6 +23,7 @@ add_executable(MCDevConsole WIN32
     src/client/cpp/src/AppWindow.cpp
     src/client/cpp/src/Protocol.cpp
     src/client/cpp/src/WebViewHost.cpp
+    src/client/cpp/src/NetworkServer.cpp
 )
 
 target_compile_features(MCDevConsole PRIVATE cxx_std_20)
@@ -53,5 +54,6 @@ target_link_libraries(MCDevConsole
         gdi32
         ole32
         oleaut32
+        ws2_32
         ${MCDEVCONSOLE_WEBVIEW2_LOADER_LIB}
 )
