@@ -1,4 +1,5 @@
 #include "MCDevConsole/WebViewHost.h"
+#include "MCDevConsole/AppWindow.h"
 
 #include <shellapi.h>
 #include <wrl/event.h>
@@ -19,6 +20,15 @@ bool WebViewHost::Initialize(HWND parent_window) {
         controller_->get_CoreWebView2(&webview_);
 
         if (webview_) {
+            // 启用非客户区支持，让 CSS -webkit-app-region:drag 生效
+            Microsoft::WRL::ComPtr<ICoreWebView2Settings> settings;
+            if (SUCCEEDED(webview_->get_Settings(&settings))) {
+                Microsoft::WRL::ComPtr<ICoreWebView2Settings9> settings9;
+                if (SUCCEEDED(settings.As(&settings9))) {
+                    settings9->put_IsNonClientRegionSupportEnabled(TRUE);
+                }
+            }
+
             ResizeToClientArea();
             
             // 注册前端消息监听器
@@ -35,15 +45,15 @@ bool WebViewHost::Initialize(HWND parent_window) {
                             if (message.find(L"\"kind\":\"window.command\"") != std::wstring::npos) {
                                 if (parent_window_ != nullptr) {
                                     if (message.find(L"\"command\":\"minimize\"") != std::wstring::npos) {
-                                        ShowWindow(parent_window_, SW_MINIMIZE);
+                                        SendMessageW(parent_window_, WM_SYSCOMMAND, SC_MINIMIZE, 0);
                                     } else if (message.find(L"\"command\":\"toggle-maximize\"") != std::wstring::npos) {
-                                        if (IsZoomed(parent_window_)) {
-                                            ShowWindow(parent_window_, SW_RESTORE);
-                                        } else {
-                                            ShowWindow(parent_window_, SW_MAXIMIZE);
-                                        }
+                                        SendMessageW(parent_window_, WM_SYSCOMMAND,
+                                            IsZoomed(parent_window_) ? SC_RESTORE : SC_MAXIMIZE, 0);
                                     } else if (message.find(L"\"command\":\"close\"") != std::wstring::npos) {
-                                        PostMessageW(parent_window_, WM_CLOSE, 0, 0);
+                                        SendMessageW(parent_window_, WM_SYSCOMMAND, SC_CLOSE, 0);
+                                    } else if (message.find(L"\"command\":\"drag-start\"") != std::wstring::npos) {
+                                        ReleaseCapture();
+                                        SendMessageW(parent_window_, WM_NCLBUTTONDOWN, HTCAPTION, 0);
                                     }
                                 }
 
@@ -51,6 +61,18 @@ bool WebViewHost::Initialize(HWND parent_window) {
                                 response += (parent_window_ != nullptr && IsZoomed(parent_window_)) ? L"true" : L"false";
                                 response += L"}";
                                 PostJsonMessage(response);
+                                return S_OK;
+                            }
+
+                            if (message.find(L"\"kind\":\"window.theme\"") != std::wstring::npos) {
+                                if (parent_window_ != nullptr) {
+                                    // 深色主题 --panel: #1a1a1a，浅色主题 --panel: #ffffff
+                                    COLORREF color = RGB(0x1a, 0x1a, 0x1a);
+                                    if (message.find(L"\"theme\":\"light\"") != std::wstring::npos) {
+                                        color = RGB(0xff, 0xff, 0xff);
+                                    }
+                                    PostMessageW(parent_window_, AppWindow::kMessageSetTitleBarColor, 0, static_cast<LPARAM>(color));
+                                }
                                 return S_OK;
                             }
 
@@ -127,6 +149,14 @@ void WebViewHost::ResizeToClientArea() const {
 
     RECT bounds{};
     GetClientRect(parent_window_, &bounds);
+    
+    // 给四边留出 6px 缩放热区，避免 WebView2 吃掉边框事件
+    constexpr int INSET = 6;
+    bounds.left   += INSET;
+    bounds.top    += INSET;
+    bounds.right  -= INSET;
+    bounds.bottom -= INSET;
+    
     controller_->put_Bounds(bounds);
 }
 

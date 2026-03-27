@@ -158,6 +158,14 @@
       background: rgba(255, 255, 255, 0.15);
     }
 
+    :root[data-theme="light"] .titlebar__button:hover {
+      background: rgba(0, 0, 0, 0.08);
+    }
+
+    :root[data-theme="light"] .titlebar__button:active {
+      background: rgba(0, 0, 0, 0.14);
+    }
+
     .titlebar__button.close:hover {
       background: #ef4444;
       color: white;
@@ -165,6 +173,16 @@
 
     .titlebar__button.close:active {
       background: #dc2626;
+    }
+
+    :root[data-theme="light"] .titlebar__button.close:hover {
+      background: #ef4444;
+      color: white;
+    }
+
+    :root[data-theme="light"] .titlebar__button.close:active {
+      background: #dc2626;
+      color: white;
     }
 
     .layout {
@@ -447,7 +465,7 @@
 </head>
 <body>
   <div class="app">
-    <header class="titlebar">
+    <header class="titlebar" id="titlebar">
       <div class="titlebar__title">MCDevConsole</div>
       <div class="titlebar__actions">
         <button id="simulate-stdout">模拟 STDOUT</button>
@@ -622,9 +640,18 @@
       }
     });
 
+    function syncWindowTheme(theme) {
+      bridge.post({
+        kind: 'window.theme',
+        theme,
+        timestamp: Date.now()
+      });
+    }
+
     function applyTheme(theme) {
       document.documentElement.setAttribute('data-theme', theme);
       localStorage.setItem(themeKey, theme);
+      syncWindowTheme(theme);
     }
 
     function toggleTheme() {
@@ -783,8 +810,7 @@
         btn.title = '还原';
         btn.innerHTML = `
           <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-            <rect x="2" y="4" width="5" height="5" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/>
-            <rect x="9" y="7" width="5" height="5" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M5 3h8v8M3 5h8v8" fill="none" stroke="currentColor" stroke-width="1.5"/>
           </svg>
         `;
       } else {
@@ -941,6 +967,46 @@
       });
       document.getElementById('titlebar-close').addEventListener('click', () => {
         sendWindowCommand('close');
+      });
+
+      // 标题栏拖拽 / 双击最大化还原
+      const titlebar = document.getElementById('titlebar');
+      let titlebarDragTimer = null;
+      titlebar.addEventListener('mousedown', (e) => {
+        const titlebarActions = document.querySelector('.titlebar__actions');
+        const isInButtonArea = titlebarActions && titlebarActions.contains(e.target);
+
+        if (!isInButtonArea) {
+          titlebarDragTimer = window.setTimeout(() => {
+            sendWindowCommand('drag-start');
+            titlebarDragTimer = null;
+          }, 50);
+        }
+      });
+      titlebar.addEventListener('mouseup', () => {
+        if (titlebarDragTimer !== null) {
+          clearTimeout(titlebarDragTimer);
+          titlebarDragTimer = null;
+        }
+      });
+      titlebar.addEventListener('mouseleave', () => {
+        if (titlebarDragTimer !== null) {
+          clearTimeout(titlebarDragTimer);
+          titlebarDragTimer = null;
+        }
+      });
+      titlebar.addEventListener('dblclick', (e) => {
+        const titlebarActions = document.querySelector('.titlebar__actions');
+        const isInButtonArea = titlebarActions && titlebarActions.contains(e.target);
+
+        if (titlebarDragTimer !== null) {
+          clearTimeout(titlebarDragTimer);
+          titlebarDragTimer = null;
+        }
+
+        if (!isInButtonArea) {
+          sendWindowCommand('toggle-maximize');
+        }
       });
 
       if (bridge.available) {

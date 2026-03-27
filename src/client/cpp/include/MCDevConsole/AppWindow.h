@@ -9,6 +9,8 @@ namespace MCDevConsole {
 
 class AppWindow {
 public:
+    static constexpr UINT kMessageSetTitleBarColor = WM_APP + 1;
+
     AppWindow() = default;
     AppWindow(const AppWindow&) = delete;
     AppWindow& operator=(const AppWindow&) = delete;
@@ -36,10 +38,13 @@ private:
     LRESULT HandleMessage(UINT message, WPARAM w_param, LPARAM l_param);
     void HandleNCHitTest(HWND hwnd, int x, int y);
     bool IsInTitleBar(int y) const noexcept;
+    void SetTitleBarColor(COLORREF color) noexcept;
 
     HINSTANCE instance_ = nullptr;
     HWND hwnd_ = nullptr;
     std::unique_ptr<WebViewHost> webview_host_;
+    COLORREF titlebar_color_ = RGB(0x1a, 0x1a, 0x1a);  // 默认深色主题
+    HBRUSH background_brush_ = nullptr;
 };
 
 } // namespace MCDevConsole

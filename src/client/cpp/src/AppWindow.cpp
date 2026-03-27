@@ -1,6 +1,9 @@
 #include "MCDevConsole/AppWindow.h"
 
 #include <windowsx.h>
+#include <dwmapi.h>
+
+#pragma comment(lib, "dwmapi.lib")
 
 namespace MCDevConsole {
 
@@ -11,13 +14,21 @@ bool AppWindow::Create(HINSTANCE instance, int show_command) {
         return false;
     }
 
+    // 基于系统工作区居中，避免覆盖任务栏区域
+    RECT work_area{};
+    SystemParametersInfoW(SPI_GETWORKAREA, 0, &work_area, 0);
+    int work_width = work_area.right - work_area.left;
+    int work_height = work_area.bottom - work_area.top;
+    int window_x = work_area.left + (work_width - kInitialWidth) / 2;
+    int window_y = work_area.top + (work_height - kInitialHeight) / 2;
+
     hwnd_ = CreateWindowExW(
-        WS_EX_NOREDIRECTIONBITMAP,
+        0,
         kWindowClassName,
         kWindowTitle,
-        WS_POPUP | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_THICKFRAME,
-        CW_USEDEFAULT,
-        CW_USEDEFAULT,
+        WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
+        window_x,
+        window_y,
         kInitialWidth,
         kInitialHeight,
         nullptr,
@@ -31,6 +42,14 @@ bool AppWindow::Create(HINSTANCE instance, int show_command) {
 
     ShowWindow(hwnd_, show_command);
     UpdateWindow(hwnd_);
+
+    // 扩展框架到整个客户区，隐藏原生标题栏但保留边框和动画
+    MARGINS margins{ -1, -1, -1, -1 };
+    DwmExtendFrameIntoClientArea(hwnd_, &margins);
+
+    // 强制刷新窗口框架，立即应用 DWM 扩展效果
+    SetWindowPos(hwnd_, nullptr, 0, 0, 0, 0,
+                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
 
     webview_host_ = std::make_unique<WebViewHost>();
     if (!webview_host_->Initialize(hwnd_)) {
@@ -79,6 +98,10 @@ bool AppWindow::RegisterWindowClass() {
     window_class.lpszClassName = kWindowClassName;
 
     const ATOM atom = RegisterClassExW(&window_class);
+    
+    // 初始化实例级背景刷
+    background_brush_ = CreateSolidBrush(titlebar_color_);
+    
     return atom != 0 || GetLastError() == ERROR_CLASS_ALREADY_EXISTS;
 }
 
@@ -117,48 +140,140 @@ void AppWindow::HandleNCHitTest(HWND hwnd, int x, int y) {
     }
 }
 
+void AppWindow::SetTitleBarColor(COLORREF color) noexcept {
+    titlebar_color_ = color;
+    if (hwnd_ != nullptr) {
+        HBRUSH new_brush = CreateSolidBrush(color);
+        HBRUSH old_brush = reinterpret_cast<HBRUSH>(
+            SetClassLongPtrW(hwnd_, GCLP_HBRBACKGROUND,
+                             reinterpret_cast<LONG_PTR>(new_brush)));
+        
+        if (old_brush && old_brush != background_brush_) {
+            DeleteObject(old_brush);
+        }
+        
+        if (background_brush_) {
+            DeleteObject(background_brush_);
+        }
+        background_brush_ = new_brush;
+        
+        SetWindowPos(hwnd_, nullptr, 0, 0, 0, 0,
+                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+    }
+}
+
 LRESULT AppWindow::HandleMessage(UINT message, WPARAM w_param, LPARAM l_param) {
     switch (message) {
+    case WM_ERASEBKGND: {
+        if (background_brush_) {
+            HDC hdc = reinterpret_cast<HDC>(w_param);
+            RECT rect;
+            GetClientRect(hwnd_, &rect);
+            FillRect(hdc, &rect, background_brush_);
+            return 1;
+        }
+        break;
+    }
+    case WM_NCCALCSIZE: {
+        if (w_param) {
+            auto* params = reinterpret_cast<NCCALCSIZE_PARAMS*>(l_param);
+            auto& rect = params->rgrc[0];
+
+            // 最大化时需要补回系统预留的边框宽度，防止遮住任务栏
+            if (IsZoomed(hwnd_)) {
+                int frame_x = GetSystemMetrics(SM_CXFRAME) +
+                              GetSystemMetrics(SM_CXPADDEDBORDER);
+                int frame_y = GetSystemMetrics(SM_CYFRAME) +
+                              GetSystemMetrics(SM_CXPADDEDBORDER);
+                rect.left   += frame_x;
+                rect.right  -= frame_x;
+                rect.top    += frame_y;
+                rect.bottom -= frame_y;
+            } else {
+                // 普通窗口：仅移除顶部标题栏，保留1px给DWM圆角
+                rect.top += 1;
+            }
+            return 0;
+        }
+        return DefWindowProcW(hwnd_, message, w_param, l_param);
+    }
+    case WM_PAINT: {
+        PAINTSTRUCT ps;
+        HDC hdc = BeginPaint(hwnd_, &ps);
+
+        RECT client_rect;
+        GetClientRect(hwnd_, &client_rect);
+
+        HBRUSH brush = CreateSolidBrush(titlebar_color_);
+        FillRect(hdc, &client_rect, brush);
+        DeleteObject(brush);
+
+        EndPaint(hwnd_, &ps);
+        return 0;
+    }
+    case WM_GETMINMAXINFO: {
+        // 限制最大化窗口不覆盖任务栏
+        auto* mmi = reinterpret_cast<MINMAXINFO*>(l_param);
+        HMONITOR monitor = MonitorFromWindow(hwnd_, MONITOR_DEFAULTTONEAREST);
+        if (monitor) {
+            MONITORINFO monitor_info{};
+            monitor_info.cbSize = sizeof(monitor_info);
+            if (GetMonitorInfoW(monitor, &monitor_info)) {
+                mmi->ptMaxPosition.x = monitor_info.rcWork.left - monitor_info.rcMonitor.left;
+                mmi->ptMaxPosition.y = monitor_info.rcWork.top - monitor_info.rcMonitor.top;
+                mmi->ptMaxSize.x = monitor_info.rcWork.right - monitor_info.rcWork.left;
+                mmi->ptMaxSize.y = monitor_info.rcWork.bottom - monitor_info.rcWork.top;
+            }
+        }
+        return 0;
+    }
+    case kMessageSetTitleBarColor:
+        SetTitleBarColor(static_cast<COLORREF>(l_param));
+        return 0;
     case WM_NCHITTEST: {
-        int x = GET_X_LPARAM(l_param);
-        int y = GET_Y_LPARAM(l_param);
-        RECT rect;
-        GetWindowRect(hwnd_, &rect);
-        x -= rect.left;
-        y -= rect.top;
-
-        HandleNCHitTest(hwnd_, x, y);
-
-        int width = rect.right - rect.left;
-        int height = rect.bottom - rect.top;
-
-        // 标题栏拖拽（优先级最高，在边框检查之前）
-        if (IsInTitleBar(y)) {
-            return HTCAPTION;
+        // 最大化状态下不需要边框缩放
+        if (IsZoomed(hwnd_)) {
+            return DefWindowProcW(hwnd_, message, w_param, l_param);
         }
 
-        // 四个角落
-        if (x < kResizeMargin && y < kResizeMargin) {
-            return HTTOPLEFT;
-        } else if (x >= width - kResizeMargin && y < kResizeMargin) {
-            return HTTOPRIGHT;
-        } else if (x < kResizeMargin && y >= height - kResizeMargin) {
-            return HTBOTTOMLEFT;
-        } else if (x >= width - kResizeMargin && y >= height - kResizeMargin) {
-            return HTBOTTOMRIGHT;
-        }
-        // 四条边
-        else if (x < kResizeMargin) {
-            return HTLEFT;
-        } else if (x >= width - kResizeMargin) {
-            return HTRIGHT;
-        } else if (y < kResizeMargin) {
-            return HTTOP;
-        } else if (y >= height - kResizeMargin) {
-            return HTBOTTOM;
-        }
+        RECT rc{};
+        GetWindowRect(hwnd_, &rc);
+        int mx = GET_X_LPARAM(l_param);
+        int my = GET_Y_LPARAM(l_param);
 
-        return HTCLIENT;
+        // 边框感应宽度（物理像素）
+        constexpr int BORDER = 8;
+
+        bool onLeft   = mx <  rc.left   + BORDER;
+        bool onRight  = mx >  rc.right  - BORDER;
+        bool onTop    = my <  rc.top    + BORDER;
+        bool onBottom = my >  rc.bottom - BORDER;
+
+        // 四角
+        if (onTop && onLeft)     return HTTOPLEFT;
+        if (onTop && onRight)    return HTTOPRIGHT;
+        if (onBottom && onLeft)  return HTBOTTOMLEFT;
+        if (onBottom && onRight) return HTBOTTOMRIGHT;
+        // 单边
+        if (onLeft)              return HTLEFT;
+        if (onRight)             return HTRIGHT;
+        if (onTop)               return HTTOP;
+        if (onBottom)            return HTBOTTOM;
+
+        // 其余交给 DefWindowProc（拖拽区域等）
+        return DefWindowProcW(hwnd_, message, w_param, l_param);
+    }
+    case WM_NCACTIVATE:
+        // 阻止系统绘制非客户区
+        return DefWindowProcW(hwnd_, message, w_param, -1);
+    case WM_NCLBUTTONDBLCLK: {
+        // 标题栏双击最大化/还原
+        if (w_param == HTCAPTION) {
+            SendMessageW(hwnd_, WM_SYSCOMMAND,
+                IsZoomed(hwnd_) ? SC_RESTORE : SC_MAXIMIZE, 0);
+            return 0;
+        }
+        break;
     }
     case WM_SIZE:
         if (webview_host_) {
