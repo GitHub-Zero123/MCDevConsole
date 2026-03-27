@@ -55,6 +55,7 @@ class NETSystem(object):
         # type: () -> None
         self.serverHost = None
         self.serverPort = None
+        self.serverIp = None  # 缓存解析后的 IP
         self.sock = None
         self.connected = False
         self.running = False
@@ -112,7 +113,7 @@ class NETSystem(object):
             if metadata:
                 payload.update(metadata)
             
-            data = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+            data = json.dumps(payload, ensure_ascii=True, separators=(",", ":"))
             packet = SERIALIZE_PACKET(typeId, data)
             
             with self.mLock:
@@ -198,6 +199,7 @@ class NETSystem(object):
                                     with self.mLock:
                                         self.serverHost = serverIp
                                         self.serverPort = serverPort
+                                        self.serverIp = serverIp  # 直接缓存 IP，避免 DNS 查询
                                     
                                     # print(serverIp)
                                     # print("[NETSystem] 发现服务器: " + serverIp + ":" + str(serverPort))
@@ -250,14 +252,15 @@ class NETSystem(object):
                     time.sleep(0.1)
                     continue
             
-            # 接收数据
-            try:
-                with self.mLock:
-                    if not self.sock or not self.connected:
-                        continue
+            # 接收数据 - 关键修复：在锁外进行 recv() 操作
+            sock = None
+            with self.mLock:
+                if self.sock and self.connected:
                     sock = self.sock
-                
+            
+            if sock:
                 try:
+                    # recv() 在锁外执行，避免长时间持有锁导致主线程卡死
                     chunk = sock.recv(4096)
                     if not chunk:
                         # 连接已关闭
@@ -267,7 +270,9 @@ class NETSystem(object):
                         print("[NETSystem] 服务器断开连接")
                         continue
                     
-                    self.recvBuffer.extend(chunk)
+                    with self.mLock:
+                        self.recvBuffer.extend(chunk)
+                    # 关键修复：在锁外处理缓冲区，避免死锁
                     self._processRecvBuffer()
                 
                 except socket.timeout:
@@ -278,13 +283,9 @@ class NETSystem(object):
                         self.connected = False
                         self.sock = None
                     print("[NETSystem] 套接字错误: " + str(e))
-            
-            except Exception as e:
-                print("[NETSystem] 接收异常: " + str(e))
-                with self.mLock:
-                    self.connected = False
-                    self.sock = None
-                time.sleep(0.1)
+            else:
+                # 没有连接，短暂休眠避免忙轮询
+                time.sleep(0.01)
         
         with self.mLock:
             if self.sock:
@@ -299,9 +300,27 @@ class NETSystem(object):
     def _tryConnect(self, host, port):
         """ 尝试连接到服务器 """
         try:
+            # 关键优化：使用缓存的 IP 避免 DNS 查询阻塞和 IDNA 编码错误
+            with self.mLock:
+                ip = self.serverIp
+            
+            if not ip:
+                # 首次连接，需要 DNS 查询
+                try:
+                    ip = socket.gethostbyname(host)
+                except:
+                    ip = host
+                
+                with self.mLock:
+                    self.serverIp = ip
+            
+            # 确保 IP 是纯 ASCII 字符串，避免 IDNA 编码错误
+            if isinstance(ip, unicode):
+                ip = ip.encode("ascii", "ignore")
+            
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(SOCKET_TIMEOUT)
-            sock.connect((host, port))
+            sock.connect((str(ip), int(port)))
             
             with self.mLock:
                 self.sock = sock
@@ -323,12 +342,43 @@ class NETSystem(object):
     
     @staticmethod
     def getPlatformInfoName():
-        """获取平台信息字符串"""
+        """获取平台信息字符串，支持多层级降级处理"""
         try:
             import platform
-            return platform.system() + " " + platform.release()
+            system = platform.system()
+            release = platform.release()
+            if system and release:
+                return system + " " + release
         except:
-            return "Unknown Platform"
+            pass
+        
+        # 降级方案1：只获取系统名称
+        try:
+            import platform
+            system = platform.system()
+            if system:
+                return system
+        except:
+            pass
+        
+        # 降级方案2：通过 sys.platform
+        try:
+            import sys
+            if sys.platform:
+                return sys.platform
+        except:
+            pass
+        
+        # 降级方案3：通过 os.name
+        try:
+            import os
+            if os.name:
+                return os.name
+        except:
+            pass
+        
+        # 最终降级：返回默认值
+        return "Unknown"
     
     def _sendHandshake(self):
         """发送握手消息"""

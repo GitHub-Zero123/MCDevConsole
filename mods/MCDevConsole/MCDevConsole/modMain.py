@@ -43,7 +43,8 @@ def DELETE_SYSTEM_REF():
 def clientExecCode(data):
     code = compile(str(data), "<string>", "exec")
     def _EXEC_CODE():
-        print("[CLIENT_CODE] Executed successfully: " + str(eval(code)))
+        eval(code)
+        print("[CLIENT_CODE] Executed successfully!")
     clientApi.GetEngineCompFactory().CreateGame(None).AddTimer(
         0, _EXEC_CODE
     )
@@ -51,7 +52,8 @@ def clientExecCode(data):
 def serverExecCode(data):
     code = compile(str(data), "<string>", "exec")
     def _EXEC_CODE():
-        print("[SERVER_CODE] Executed successfully: " + str(eval(code)))
+        eval(code)
+        print("[SERVER_CODE] Executed successfully!")
     serverApi.GetEngineCompFactory().CreateGame(None).AddTimer(
         0, _EXEC_CODE
     )
