@@ -12,3 +12,6 @@ sys = std.unsafeImpModule("sys")
 os = std.unsafeImpModule("os")
 socket = std.unsafeImpModule("socket")
 platform = std.unsafeImpModule("platform")
+
+mCompile = std.unsafeImpModule("builtins").compile
+mEval = std.unsafeImpModule("builtins").eval

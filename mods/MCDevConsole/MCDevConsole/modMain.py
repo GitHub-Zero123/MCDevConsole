@@ -4,6 +4,7 @@ import mod.server.extraServerApi as serverApi
 import mod.client.extraClientApi as clientApi
 from . import network
 from . import logging
+from .ub import mCompile, mEval
 
 _SYSTEM_REF = 0
 _NET_SYSTEM = network.NETSystem()
@@ -41,18 +42,18 @@ def DELETE_SYSTEM_REF():
     return _SYSTEM_REF
 
 def clientExecCode(data):
-    code = compile(str(data), "<string>", "exec")
+    code = mCompile(str(data), "<string>", "exec")
     def _EXEC_CODE():
-        eval(code)
+        mEval(code)
         print("[CLIENT_CODE] Executed successfully!")
     clientApi.GetEngineCompFactory().CreateGame(None).AddTimer(
         0, _EXEC_CODE
     )
 
 def serverExecCode(data):
-    code = compile(str(data), "<string>", "exec")
+    code = mCompile(str(data), "<string>", "exec")
     def _EXEC_CODE():
-        eval(code)
+        mEval(code)
         print("[SERVER_CODE] Executed successfully!")
     serverApi.GetEngineCompFactory().CreateGame(None).AddTimer(
         0, _EXEC_CODE
