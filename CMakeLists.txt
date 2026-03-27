@@ -63,6 +63,7 @@ target_include_directories(MCDevConsole
     PRIVATE
         ${MCDEVCONSOLE_WEBVIEW2_INCLUDE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/src/client/cpp/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/third_party
 )
 
 if(MSVC)
