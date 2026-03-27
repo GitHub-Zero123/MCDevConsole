@@ -14,6 +14,50 @@
 namespace MCDevConsole {
 namespace {
 
+bool ContainsIgnoreCase(const std::string& text, const std::string& needle) {
+    if (needle.empty() || text.size() < needle.size()) {
+        return false;
+    }
+
+    auto to_lower = [](unsigned char ch) {
+        return static_cast<char>(std::tolower(ch));
+    };
+
+    for (std::size_t i = 0; i + needle.size() <= text.size(); ++i) {
+        bool matched = true;
+        for (std::size_t j = 0; j < needle.size(); ++j) {
+            if (to_lower(static_cast<unsigned char>(text[i + j])) != to_lower(static_cast<unsigned char>(needle[j]))) {
+                matched = false;
+                break;
+            }
+        }
+        if (matched) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+std::wstring ClassifyStdoutLevel(const std::string& line) {
+    if (line.find("[INFO][Developer]") != std::string::npos) {
+        return L"DEVELOPER";
+    }
+    if (ContainsIgnoreCase(line, "SUC")) {
+        return L"SUCCESS";
+    }
+    if (ContainsIgnoreCase(line, "ERROR")) {
+        return L"ERROR";
+    }
+    if (ContainsIgnoreCase(line, "WARN")) {
+        return L"WARN";
+    }
+    if (ContainsIgnoreCase(line, "DEBUG")) {
+        return L"DEBUG";
+    }
+    return L"INFO";
+}
+
 std::wstring Utf8ToWide(const std::string& input) {
     if (input.empty()) {
         return {};
@@ -91,13 +135,22 @@ std::string ExtractJsonStringField(const std::string& json, const char* key) {
 std::wstring MakeLogJson(const std::wstring& session_id,
                          const std::wstring& level,
                          const std::wstring& message,
-                         const std::wstring& time_text) {
+                         const std::wstring& time_text,
+                         const std::wstring& name,
+                         const std::wstring& endpoint,
+                         const std::wstring& platform) {
     std::wstring json = L"{\"kind\":\"log\",\"sessionId\":\"";
     json += EscapeJsonString(session_id);
     json += L"\",\"level\":\"";
     json += EscapeJsonString(level);
     json += L"\",\"message\":\"";
     json += EscapeJsonString(message);
+    json += L"\",\"name\":\"";
+    json += EscapeJsonString(name);
+    json += L"\",\"endpoint\":\"";
+    json += EscapeJsonString(endpoint);
+    json += L"\",\"platform\":\"";
+    json += EscapeJsonString(platform);
     json += L"\"";
 
     if (!time_text.empty()) {
@@ -340,6 +393,15 @@ void NetworkServer::TcpAcceptThread() {
         session->endpoint = client_ip + ":" + client_port;
         session->platform = "Unknown";
         session->online.store(true);
+        session->last_activity_tick.store(GetTickCount64());
+
+        constexpr DWORD RECV_TIMEOUT_MS = 1500;
+        setsockopt(
+            client_socket,
+            SOL_SOCKET,
+            SO_RCVTIMEO,
+            reinterpret_cast<const char*>(&RECV_TIMEOUT_MS),
+            sizeof(RECV_TIMEOUT_MS));
 
         {
             std::lock_guard<std::mutex> lock(sessions_mutex_);
@@ -362,9 +424,24 @@ void NetworkServer::TcpClientThread(std::shared_ptr<ClientSession> session) {
             0);
 
         if (received <= 0) {
+            if (received == 0) {
+                break;
+            }
+
+            const int err = WSAGetLastError();
+            if (err == WSAETIMEDOUT || err == WSAEWOULDBLOCK) {
+                const unsigned long long now = GetTickCount64();
+                const unsigned long long last = session->last_activity_tick.load();
+                if (now > last && (now - last) > 5000) {
+                    break;
+                }
+                continue;
+            }
+
             break;
         }
 
+        session->last_activity_tick.store(GetTickCount64());
         session->recv_buffer.insert(session->recv_buffer.end(), temp_buffer.begin(), temp_buffer.begin() + received);
 
         while (true) {
@@ -429,15 +506,39 @@ void NetworkServer::HandlePacket(const std::shared_ptr<ClientSession>& session, 
     }
 
     if (packet.type_id == Protocol::TYPE_STDOUT_LOG || packet.type_id == Protocol::TYPE_STDERR_LOG) {
-        const std::wstring level = packet.type_id == Protocol::TYPE_STDERR_LOG ? L"STDERR" : L"INFO";
+        if (packet.type_id == Protocol::TYPE_STDOUT_LOG
+            && message_text.find(" [INFO][Engine] ") != std::string::npos) {
+            return;
+        }
+
+        const std::wstring level = packet.type_id == Protocol::TYPE_STDERR_LOG
+            ? L"STDERR"
+            : ClassifyStdoutLevel(message_text);
+
         webview_host_->PostJsonMessage(
             MakeLogJson(
                 Utf8ToWide(session->session_id),
                 level,
                 Utf8ToWide(message_text),
-                Utf8ToWide(time_text))
+                Utf8ToWide(time_text),
+                Utf8ToWide(session->display_name.empty() ? session->session_id : session->display_name),
+                Utf8ToWide(session->endpoint),
+                Utf8ToWide(session->platform))
         );
         return;
+    }
+}
+
+void NetworkServer::ReplaySessionsToFrontend() {
+    if (!webview_host_) {
+        return;
+    }
+
+    std::lock_guard<std::mutex> lock(sessions_mutex_);
+    for (const auto& session : sessions_) {
+        if (session && session->online.load()) {
+            NotifyDeviceUpsert(session);
+        }
     }
 }
 

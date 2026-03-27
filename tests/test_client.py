@@ -124,6 +124,7 @@ class MCDevConsoleClient:
             type_id = TYPE_STDERR_LOG if level == 'STDERR' else TYPE_STDOUT_LOG
             packet = serialize_packet(type_id, json.dumps(payload, ensure_ascii=False, separators=(',', ':')))
             self.tcp_socket.sendall(packet)
+            print(f"[日志] 发送 {level} 日志: {message}")
         except Exception as e:
             print(f"[日志] 发送失败: {e}")
             self.connected = False

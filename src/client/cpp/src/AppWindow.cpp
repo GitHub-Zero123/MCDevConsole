@@ -339,6 +339,8 @@ LRESULT AppWindow::HandleMessage(UINT message, WPARAM w_param, LPARAM l_param) {
     default:
         return DefWindowProcW(hwnd_, message, w_param, l_param);
     }
+
+    return DefWindowProcW(hwnd_, message, w_param, l_param);
 }
 
 } // namespace MCDevConsole

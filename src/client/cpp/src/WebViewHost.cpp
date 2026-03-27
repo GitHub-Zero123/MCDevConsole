@@ -55,7 +55,7 @@ std::string WideToUtf8(const std::wstring& value) {
 
     const int required = WideCharToMultiByte(CP_UTF8, 0, value.c_str(), static_cast<int>(value.size()), nullptr, 0, nullptr, nullptr);
     if (required <= 0) {
-        return std::string(value.begin(), value.end());
+        return {};
     }
 
     std::string result(static_cast<std::size_t>(required), '\0');
@@ -71,8 +71,6 @@ void WebViewHost::SetNetworkServer(NetworkServer* network_server) noexcept {
 
 bool WebViewHost::Initialize(HWND parent_window) {
     parent_window_ = parent_window;
-    page_ready_ = false;
-    pending_messages_.clear();
 
     auto on_webview_created = [this](HRESULT result, ICoreWebView2Controller* controller) -> HRESULT {
         if (FAILED(result) || controller == nullptr) {
@@ -182,11 +180,9 @@ bool WebViewHost::Initialize(HWND parent_window) {
                             }
 
                             if (message.find(L"\"kind\":\"web.ready\"") != std::wstring::npos) {
-                                page_ready_ = true;
-                                for (const auto& pending : pending_messages_) {
-                                    PostJsonMessageNow(pending);
+                                if (network_server_ != nullptr) {
+                                    network_server_->ReplaySessionsToFrontend();
                                 }
-                                pending_messages_.clear();
                                 return S_OK;
                             }
                         }
@@ -219,7 +215,6 @@ bool WebViewHost::Initialize(HWND parent_window) {
                         args->get_IsSuccess(&success);
                         
                         if (success) {
-                            page_ready_ = false;
                             std::wstring hello = L"{\"kind\":\"hello\",\"message\":\"MCDevConsole Host Ready\"}";
                             PostJsonMessage(hello);
                         }
@@ -293,11 +288,6 @@ void WebViewHost::NavigateToFile(const std::wstring& file_path) const {
 }
 
 void WebViewHost::PostJsonMessage(const std::wstring& json) const {
-    if (!page_ready_) {
-        pending_messages_.push_back(json);
-        return;
-    }
-
     if (parent_window_ == nullptr) {
         return;
     }

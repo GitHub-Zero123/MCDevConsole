@@ -406,37 +406,61 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 12px;
+      gap: 10px;
+      margin-bottom: 8px;
     }
 
     .panel__meta {
       color: var(--muted);
-      font-size: 12px;
+      font-size: 11px;
+      line-height: 1.3;
     }
 
     .logs {
       flex: 1;
       min-height: 0;
       overflow: auto;
-      padding-right: 4px;
+      padding-right: 2px;
       font-family: Consolas, "Courier New", monospace;
-      font-size: 12px;
+      font-size: 11px;
+      line-height: 1.3;
       white-space: pre-wrap;
     }
 
     .log-line {
-      padding: 8px 10px;
-      border-radius: 4px;
+      padding: 5px 8px;
+      border-radius: 3px;
       background: var(--panel-2);
       border: 1px solid var(--border);
-      line-height: 1.45;
+      line-height: 1.3;
       word-break: break-word;
     }
 
     .log-line[data-level="STDERR"],
     .log-line[data-level="ERROR"] {
       border-color: rgba(239, 68, 68, 0.45);
+      background: color-mix(in srgb, rgba(239, 68, 68, 0.12) 55%, var(--panel-2));
+    }
+
+    .log-line[data-level="WARN"] {
+      border-color: rgba(245, 158, 11, 0.42);
+      background: color-mix(in srgb, rgba(245, 158, 11, 0.12) 55%, var(--panel-2));
+    }
+
+    .log-line[data-level="DEBUG"] {
+      border-color: rgba(6, 182, 212, 0.4);
+      background: color-mix(in srgb, rgba(6, 182, 212, 0.1) 55%, var(--panel-2));
+    }
+
+    .log-line[data-level="SUCCESS"] {
+      border-color: rgba(34, 197, 94, 0.4);
+      background: color-mix(in srgb, rgba(34, 197, 94, 0.1) 55%, var(--panel-2));
+    }
+
+    .log-line[data-level="DEVELOPER"] {
+      border-color: rgba(107, 114, 128, 0.38);
+      color: color-mix(in srgb, var(--muted) 82%, var(--text));
+      background: color-mix(in srgb, rgba(107, 114, 128, 0.08) 55%, var(--panel-2));
     }
 
     .log-line[data-level="INFO"] {
@@ -757,7 +781,7 @@
         <div class="panel logs-panel" id="logs-panel">
           <div class="panel__header">
             <div>
-              <h2 class="section-title">日志面板</h2>
+              <h2 class="section-title">日志</h2>
               <div class="panel__meta" id="active-device-text">当前会话：未选择客户端</div>
             </div>
             <div class="panel__meta" id="stats">日志缓存：0 / 2000</div>
@@ -1174,6 +1198,19 @@
           if (!targetSessionId) {
             return;
           }
+
+          if (!deviceMap.has(targetSessionId)) {
+            ensureDevice({
+              id: targetSessionId,
+              name: message.name || targetSessionId,
+              online: true,
+              endpoint: message.endpoint || '未知端点',
+              platform: message.platform || 'Unknown',
+              lastSeen: message.time || new Date().toLocaleTimeString()
+            });
+            scheduleDeviceRender();
+          }
+
           addLog(
             message.level || 'INFO',
             message.message || '',
@@ -1183,25 +1220,37 @@
           break;
         }
         case 'device.upsert': {
-          ensureDevice({
-            id: message.sessionId || message.id,
-            name: message.name || message.sessionId || message.id,
+          const sessionId = message.sessionId || message.id;
+          if (!sessionId) {
+            break;
+          }
+
+          const device = ensureDevice({
+            id: sessionId,
+            name: message.name || sessionId,
             online: message.online ?? true,
             endpoint: message.endpoint || '未知端点',
             platform: message.platform || 'Unknown',
-            lastSeen: new Date().toLocaleTimeString()
+            lastSeen: message.time || new Date().toLocaleTimeString()
           });
-          renderDevices();
-          renderLogs();
+
+          device.online = message.online ?? true;
+          if (!activeDeviceId) {
+            activeDeviceId = sessionId;
+          }
+
+          scheduleDeviceRender();
+          scheduleLogRender();
           break;
         }
         case 'device.offline': {
-          const device = deviceMap.get(message.sessionId || message.id);
+          const sessionId = message.sessionId || message.id;
+          const device = deviceMap.get(sessionId);
           if (device) {
             device.online = false;
             device.lastSeen = new Date().toLocaleTimeString();
-            renderDevices();
-            renderLogs();
+            scheduleDeviceRender();
+            scheduleLogRender();
           }
           break;
         }
