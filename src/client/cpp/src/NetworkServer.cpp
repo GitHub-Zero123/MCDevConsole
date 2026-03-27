@@ -163,10 +163,39 @@ std::wstring MakeLogJson(const std::wstring& session_id,
     return json;
 }
 
+bool IsPortInUseImpl(std::uint16_t port) {
+    WSADATA wsa_data{};
+    if (WSAStartup(MAKEWORD(2, 2), &wsa_data) != 0) {
+        return false;
+    }
+
+    SOCKET test_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (test_socket == INVALID_SOCKET) {
+        WSACleanup();
+        return false;
+    }
+
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    addr.sin_port = htons(port);
+
+    bool in_use = (bind(test_socket, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == SOCKET_ERROR);
+    
+    closesocket(test_socket);
+    WSACleanup();
+    
+    return in_use;
+}
+
 } // namespace
 
 NetworkServer::~NetworkServer() {
     Stop();
+}
+
+bool NetworkServer::IsPortInUse(std::uint16_t port) {
+    return IsPortInUseImpl(port);
 }
 
 bool NetworkServer::Start(WebViewHost* webview_host) {

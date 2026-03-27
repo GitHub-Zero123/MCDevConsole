@@ -71,7 +71,33 @@ bool AppWindow::Create(HINSTANCE instance, int show_command) {
 
     network_server_ = std::make_unique<NetworkServer>();
     webview_host_->SetNetworkServer(network_server_.get());
-    if (!network_server_->Start(webview_host_.get())) {
+    
+    // 检查端口占用
+    bool udp_in_use = NetworkServer::IsPortInUse(NetworkServer::kDiscoveryPort);
+    bool tcp_in_use = NetworkServer::IsPortInUse(NetworkServer::kTcpPort);
+    
+    if (udp_in_use || tcp_in_use) {
+        std::wstring error_msg = L"端口已被占用，请稍后重试\n\n";
+        if (udp_in_use) {
+            error_msg += L"UDP 端口 18232 已被占用\n";
+        }
+        if (tcp_in_use) {
+            error_msg += L"TCP 端口 18233 已被占用\n";
+        }
+
+        MessageBoxW(hwnd_, error_msg.c_str(), L"MCDevConsole", MB_OK | MB_ICONWARNING);
+
+        webview_host_->SetNetworkServer(nullptr);
+        network_server_.reset();
+        webview_host_.reset();
+
+        if (hwnd_ != nullptr) {
+            DestroyWindow(hwnd_);
+            hwnd_ = nullptr;
+        }
+
+        return false;
+    } else if (!network_server_->Start(webview_host_.get())) {
         webview_host_->SetNetworkServer(nullptr);
         webview_host_->PostJsonMessage(L"{\"kind\":\"log\",\"level\":\"ERROR\",\"message\":\"NetworkServer 启动失败：TCP/UDP 监听未建立\"}");
         network_server_.reset();

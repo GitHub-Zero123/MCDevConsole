@@ -45,6 +45,8 @@ public:
     void ReplaySessionsToFrontend();
 
     void SendExecCommand(const std::string& session_id, std::uint16_t type_id, const std::string& code);
+    
+    static bool IsPortInUse(std::uint16_t port);
 
 private:
     void UdpDiscoveryThread();
