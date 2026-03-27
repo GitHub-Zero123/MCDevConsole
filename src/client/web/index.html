@@ -864,6 +864,10 @@
     let startComposerHeight = 0;
 
     divider.addEventListener('mousedown', (e) => {
+      // 只有展开状态才允许拖拽
+      if (!composerPanel.classList.contains('expanded')) {
+        return;
+      }
       isDragging = true;
       startY = e.clientY;
       startLogsHeight = logsPanel.offsetHeight;
@@ -879,11 +883,11 @@
       const deltaY = e.clientY - startY;
       const newLogsHeight = startLogsHeight + deltaY;
       const newComposerHeight = startComposerHeight - deltaY;
-      const composerMinHeight = composerPanel.classList.contains('expanded') ? 164 : 44;
+      const composerMinHeight = 164; // 展开状态的最小高度
 
       if (newLogsHeight >= 120 && newComposerHeight >= composerMinHeight) {
         logsPanel.style.flex = `0 0 ${newLogsHeight}px`;
-        composerPanel.style.height = `${newComposerHeight}px`;
+        composerPanel.style.flex = `0 0 ${newComposerHeight}px`;
       }
     });
 
@@ -1310,7 +1314,18 @@
 
     function toggleComposerPanel() {
       const panel = document.getElementById('composer-panel');
+      const logsPanel = document.getElementById('logs-panel');
+      const isExpanding = !panel.classList.contains('expanded');
+      
       panel.classList.toggle('expanded');
+      
+      // 折叠时清除拖拽设置的 flex 样式，恢复 CSS 默认值
+      if (!isExpanding) {
+        // 清除内联样式，恢复 CSS 中的默认 flex 值
+        logsPanel.style.flex = '';
+        panel.style.flex = '';
+      }
+      
       updateBridgeStatus();
     }
 
