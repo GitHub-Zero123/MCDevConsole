@@ -25,20 +25,27 @@ _LOG_PROXY = logging.LoggingProxySystem() \
 
 _NET_SYSTEM.setConnectedHandler(lambda: _LOG_PROXY.updateCachedLogs())
 
+def TRY_CALL(func):
+    try:
+        func()
+    except Exception:
+        import traceback
+        traceback.print_exc()
+
 def ADD_SYSTEM_REF():
     global _SYSTEM_REF
     _SYSTEM_REF += 1
     if _SYSTEM_REF == 1:
-        _LOG_PROXY.startProxy()
-        _NET_SYSTEM.start()
+        TRY_CALL(lambda: _LOG_PROXY.startProxy())
+        TRY_CALL(lambda: _NET_SYSTEM.start())
     return _SYSTEM_REF
 
 def DELETE_SYSTEM_REF():
     global _SYSTEM_REF
     _SYSTEM_REF -= 1
     if _SYSTEM_REF == 0:
-        _NET_SYSTEM.close()
-        _LOG_PROXY.closeProxy()
+        TRY_CALL(lambda: _NET_SYSTEM.close())
+        TRY_CALL(lambda: _LOG_PROXY.closeProxy())
     return _SYSTEM_REF
 
 def clientExecCode(data):
