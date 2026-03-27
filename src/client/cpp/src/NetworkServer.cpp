@@ -3,6 +3,7 @@
 
 #include <ws2tcpip.h>
 
+#include <cstring>
 #include <mutex>
 #include <sstream>
 #include <string>
@@ -256,14 +257,49 @@ void NetworkServer::UdpDiscoveryThread() {
             host_name[0] = '\0';
         }
 
-        sockaddr_in local_addr{};
-        int local_len = sizeof(local_addr);
-        getsockname(tcp_socket_, reinterpret_cast<sockaddr*>(&local_addr), &local_len);
-
         char ip_text[INET_ADDRSTRLEN]{};
-        inet_ntop(AF_INET, &local_addr.sin_addr, ip_text, sizeof(ip_text));
-        if (std::string(ip_text) == "0.0.0.0") {
-            inet_ntop(AF_INET, &from_addr.sin_addr, ip_text, sizeof(ip_text));
+        SOCKET probe_socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+        bool resolved = false;
+        if (probe_socket != INVALID_SOCKET) {
+            sockaddr_in probe_target{};
+            probe_target.sin_family = AF_INET;
+            probe_target.sin_addr = from_addr.sin_addr;
+            probe_target.sin_port = htons(kDiscoveryPort);
+
+            if (connect(probe_socket, reinterpret_cast<const sockaddr*>(&probe_target), sizeof(probe_target)) != SOCKET_ERROR) {
+                sockaddr_in local_addr{};
+                int local_len = sizeof(local_addr);
+                if (getsockname(probe_socket, reinterpret_cast<sockaddr*>(&local_addr), &local_len) != SOCKET_ERROR) {
+                    inet_ntop(AF_INET, &local_addr.sin_addr, ip_text, sizeof(ip_text));
+                    resolved = std::string(ip_text) != "0.0.0.0";
+                }
+            }
+            closesocket(probe_socket);
+        }
+
+        if (!resolved) {
+            char host_buffer[256]{};
+            if (gethostname(host_buffer, static_cast<int>(sizeof(host_buffer))) != SOCKET_ERROR) {
+                addrinfo hints{};
+                hints.ai_family = AF_INET;
+                hints.ai_socktype = SOCK_STREAM;
+                addrinfo* info = nullptr;
+                if (getaddrinfo(host_buffer, nullptr, &hints, &info) == 0) {
+                    for (addrinfo* current = info; current != nullptr; current = current->ai_next) {
+                        auto* ipv4 = reinterpret_cast<sockaddr_in*>(current->ai_addr);
+                        if (ipv4 != nullptr && ipv4->sin_addr.s_addr != htonl(INADDR_LOOPBACK)) {
+                            inet_ntop(AF_INET, &ipv4->sin_addr, ip_text, sizeof(ip_text));
+                            resolved = true;
+                            break;
+                        }
+                    }
+                    freeaddrinfo(info);
+                }
+            }
+        }
+
+        if (!resolved) {
+            std::strcpy(ip_text, "127.0.0.1");
         }
 
         std::ostringstream response;

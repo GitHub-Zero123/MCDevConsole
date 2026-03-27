@@ -73,7 +73,10 @@ bool AppWindow::Create(HINSTANCE instance, int show_command) {
     webview_host_->SetNetworkServer(network_server_.get());
     if (!network_server_->Start(webview_host_.get())) {
         webview_host_->SetNetworkServer(nullptr);
+        webview_host_->PostJsonMessage(L"{\"kind\":\"log\",\"level\":\"ERROR\",\"message\":\"NetworkServer 启动失败：TCP/UDP 监听未建立\"}");
         network_server_.reset();
+    } else {
+        webview_host_->PostJsonMessage(L"{\"kind\":\"log\",\"level\":\"INFO\",\"message\":\"NetworkServer 已启动：UDP 18232 / TCP 18233\"}");
     }
 
     return true;

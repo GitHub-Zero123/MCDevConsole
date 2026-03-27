@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 #include <wrl/client.h>
 #include <windows.h>
 
@@ -33,6 +34,8 @@ public:
 private:
     HWND parent_window_ = nullptr;
     NetworkServer* network_server_ = nullptr;
+    bool page_ready_ = false;
+    mutable std::vector<std::wstring> pending_messages_;
     Microsoft::WRL::ComPtr<ICoreWebView2Controller> controller_;
     Microsoft::WRL::ComPtr<ICoreWebView2> webview_;
 };

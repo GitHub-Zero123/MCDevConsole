@@ -180,6 +180,11 @@ bool WebViewHost::Initialize(HWND parent_window) {
                             }
 
                             if (message.find(L"\"kind\":\"web.ready\"") != std::wstring::npos) {
+                                page_ready_ = true;
+                                for (const auto& pending : pending_messages_) {
+                                    PostJsonMessageNow(pending);
+                                }
+                                pending_messages_.clear();
                                 return S_OK;
                             }
                         }
@@ -285,6 +290,11 @@ void WebViewHost::NavigateToFile(const std::wstring& file_path) const {
 }
 
 void WebViewHost::PostJsonMessage(const std::wstring& json) const {
+    if (!page_ready_) {
+        pending_messages_.push_back(json);
+        return;
+    }
+
     if (parent_window_ == nullptr) {
         return;
     }
