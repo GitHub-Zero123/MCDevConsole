@@ -14,6 +14,7 @@ import struct
 import threading
 import time
 import json
+
 TYPE_STDOUT_LOG = 1
 TYPE_STDERR_LOG = 2
 TYPE_EXEC_CLIENT = 3
@@ -66,6 +67,7 @@ class NETSystem(object):
         self.listenThread = None
         self.discoveryThread = None
         self.connectedHandler = None
+        self.discoveryEnabled = True  # 控制 UDP 发现是否启用
     
     def setConnectedHandler(self, handler):
         """ 设置连接成功回调函数，连接成功时会调用 handler() """
@@ -150,6 +152,7 @@ class NETSystem(object):
             sock = self.sock
             self.sock = None
             self.connected = False
+            self.discoveryEnabled = True  # 重新启用 UDP 发现，以便重新连接
         
         if sock:
             try:
@@ -176,6 +179,9 @@ class NETSystem(object):
             while True:
                 with self.mLock:
                     if not self.running:
+                        break
+                    # 如果已连接，停止 UDP 发现
+                    if self.connected and not self.discoveryEnabled:
                         break
                 
                 current_time = time.time()
@@ -266,6 +272,7 @@ class NETSystem(object):
                         with self.mLock:
                             self.connected = False
                             self.sock = None
+                            self.discoveryEnabled = True  # 重新启用 UDP 发现，以便自动重新连接
                         print("[NETSystem] 服务器断开连接")
                         continue
                     
@@ -281,6 +288,7 @@ class NETSystem(object):
                     with self.mLock:
                         self.connected = False
                         self.sock = None
+                        self.discoveryEnabled = True  # 重新启用 UDP 发现，以便自动重新连接
                     print("[NETSystem] 套接字错误: " + str(e))
             else:
                 # 没有连接，短暂休眠避免忙轮询
@@ -325,6 +333,7 @@ class NETSystem(object):
                 self.sock = sock
                 self.connected = True
                 self.recvBuffer = bytearray()
+                self.discoveryEnabled = False  # 停止 UDP 发现
             
             # 连接成功后立即发送初始化消息，避免服务器超时断开
             self._sendHandshake()
