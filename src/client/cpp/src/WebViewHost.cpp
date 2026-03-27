@@ -71,6 +71,8 @@ void WebViewHost::SetNetworkServer(NetworkServer* network_server) noexcept {
 
 bool WebViewHost::Initialize(HWND parent_window) {
     parent_window_ = parent_window;
+    page_ready_ = false;
+    pending_messages_.clear();
 
     auto on_webview_created = [this](HRESULT result, ICoreWebView2Controller* controller) -> HRESULT {
         if (FAILED(result) || controller == nullptr) {
@@ -217,6 +219,7 @@ bool WebViewHost::Initialize(HWND parent_window) {
                         args->get_IsSuccess(&success);
                         
                         if (success) {
+                            page_ready_ = false;
                             std::wstring hello = L"{\"kind\":\"hello\",\"message\":\"MCDevConsole Host Ready\"}";
                             PostJsonMessage(hello);
                         }
