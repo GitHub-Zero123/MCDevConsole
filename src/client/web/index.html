@@ -1,0 +1,696 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MCDevConsole</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #111111;
+      --panel: #1a1a1a;
+      --panel-2: #202020;
+      --panel-3: #181818;
+      --text: #f3f3f3;
+      --muted: #a3a3a3;
+      --border: #2d2d2d;
+      --accent: #ffffff;
+      --success: #38c172;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --offline: #737373;
+      --shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
+    }
+
+    :root[data-theme="light"] {
+      color-scheme: light;
+      --bg: #f5f5f5;
+      --panel: #ffffff;
+      --panel-2: #fafafa;
+      --panel-3: #f1f1f1;
+      --text: #111111;
+      --muted: #666666;
+      --border: #dddddd;
+      --accent: #111111;
+      --success: #1f9d55;
+      --warning: #b7791f;
+      --danger: #dc2626;
+      --offline: #999999;
+      --shadow: 0 12px 36px rgba(0, 0, 0, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      overflow: hidden;
+    }
+
+    button,
+    input,
+    textarea {
+      font: inherit;
+    }
+
+    button {
+      border: 1px solid var(--border);
+      background: var(--panel-2);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 7px 12px;
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+    }
+
+    button:hover {
+      background: var(--panel-3);
+      border-color: var(--muted);
+    }
+
+    button:active {
+      transform: translateY(1px);
+    }
+
+    textarea {
+      width: 100%;
+      resize: none;
+      background: var(--panel-3);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      min-height: 120px;
+      outline: none;
+    }
+
+    .app {
+      display: grid;
+      grid-template-rows: 48px 1fr 28px;
+      width: 100%;
+      height: 100%;
+    }
+
+    .titlebar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      border-bottom: 1px solid var(--border);
+      background: var(--panel);
+      user-select: none;
+    }
+
+    .titlebar__title {
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+    }
+
+    .titlebar__actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      min-height: 0;
+    }
+
+    .sidebar {
+      border-right: 1px solid var(--border);
+      background: var(--panel);
+      padding: 12px;
+      overflow: auto;
+    }
+
+    .content {
+      display: grid;
+      grid-template-rows: minmax(0, 1fr) 240px;
+      min-height: 0;
+      background: var(--bg);
+    }
+
+    .section-title {
+      margin: 0 0 12px;
+      font-size: 12px;
+      text-transform: uppercase;
+      color: var(--muted);
+      letter-spacing: 0.8px;
+    }
+
+    .device-list,
+    .logs {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .device {
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--panel-2);
+      box-shadow: var(--shadow);
+    }
+
+    .device.active {
+      outline: 1px solid var(--accent);
+    }
+
+    .device__header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .device__name {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      min-width: 0;
+    }
+
+    .device__name span:last-child {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .device__meta,
+    .device__hint {
+      margin-top: 6px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--success);
+      flex: 0 0 auto;
+    }
+
+    .dot.offline {
+      background: var(--offline);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 46px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      background: var(--panel-3);
+    }
+
+    .panel {
+      margin: 12px;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--panel);
+      min-height: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: var(--shadow);
+    }
+
+    .panel__header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .panel__meta {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .logs {
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      padding-right: 4px;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+    }
+
+    .log-line {
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      line-height: 1.45;
+      word-break: break-word;
+    }
+
+    .log-line[data-level="STDERR"],
+    .log-line[data-level="ERROR"] {
+      border-color: rgba(239, 68, 68, 0.45);
+    }
+
+    .log-line[data-level="INFO"] {
+      border-color: rgba(255, 255, 255, 0.12);
+    }
+
+    .composer {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: 10px;
+      min-height: 0;
+    }
+
+    .composer__toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .composer__actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .statusbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 0 12px;
+      border-top: 1px solid var(--border);
+      background: var(--panel);
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .empty {
+      color: var(--muted);
+      padding: 14px 10px;
+      border: 1px dashed var(--border);
+      border-radius: 10px;
+      text-align: center;
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="titlebar">
+      <div class="titlebar__title">MCDevConsole</div>
+      <div class="titlebar__actions">
+        <button id="simulate-stdout">模拟 STDOUT</button>
+        <button id="simulate-stderr">模拟 STDERR</button>
+        <button id="theme-toggle">切换主题</button>
+        <button id="export-logs">导出日志</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <aside class="sidebar">
+        <h2 class="section-title">客户端列表</h2>
+        <div class="device-list" id="device-list"></div>
+      </aside>
+
+      <section class="content">
+        <div class="panel">
+          <div class="panel__header">
+            <div>
+              <h2 class="section-title">日志面板</h2>
+              <div class="panel__meta" id="active-device-text">当前会话：未选择客户端</div>
+            </div>
+            <div class="panel__meta" id="stats">日志缓存：0 / 10000</div>
+          </div>
+          <div class="logs" id="logs"></div>
+        </div>
+
+        <div class="panel composer">
+          <div class="composer__toolbar">
+            <span>调试桥接：向宿主发送 JSON 指令，后续可对接 typeId 3 / 4</span>
+            <span id="bridge-status">桥接状态：浏览器模式</span>
+          </div>
+          <textarea id="command-input" spellcheck="false">{
+  "kind": "exec",
+  "target": "client",
+  "sessionId": "device-1",
+  "code": "console.log('hello from web')"
+}</textarea>
+          <div class="composer__actions">
+            <button id="send-command">发送到宿主</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="statusbar">
+      <div>UDP 自动发现端口：18232</div>
+      <div id="runtime-hint">等待宿主连接</div>
+    </footer>
+  </div>
+
+  <script>
+    const themeKey = 'mcdevconsole.theme';
+    const maxLogs = 10000;
+    const cleanupCount = 2500;
+    const logs = [];
+    const deviceMap = new Map();
+    let activeDeviceId = null;
+
+    const initialDevices = [
+      { id: 'device-1', name: '示例设备 A', online: true, endpoint: '192.168.1.23:19199', platform: 'Windows' },
+      { id: 'device-2', name: '示例设备 B', online: false, endpoint: '192.168.1.30:19199', platform: 'Android' }
+    ];
+
+    const bridge = {
+      available: Boolean(window.chrome && window.chrome.webview),
+      post(message) {
+        if (this.available) {
+          window.chrome.webview.postMessage(message);
+          return true;
+        }
+
+        console.info('[MCDevConsole] 浏览器模式下拦截宿主消息', message);
+        return false;
+      }
+    };
+
+    function applyTheme(theme) {
+      document.documentElement.setAttribute('data-theme', theme);
+      localStorage.setItem(themeKey, theme);
+    }
+
+    function toggleTheme() {
+      const current = document.documentElement.getAttribute('data-theme') || 'dark';
+      applyTheme(current === 'dark' ? 'light' : 'dark');
+      addLog('INFO', `主题已切换为 ${current === 'dark' ? 'light' : 'dark'}`);
+    }
+
+    function ensureDevice(device) {
+      const existing = deviceMap.get(device.id) || {};
+      const merged = {
+        logs: existing.logs || [],
+        lastSeen: existing.lastSeen || '',
+        ...existing,
+        ...device
+      };
+      deviceMap.set(merged.id, merged);
+      if (!activeDeviceId) {
+        activeDeviceId = merged.id;
+      }
+      return merged;
+    }
+
+    function setActiveDevice(deviceId) {
+      if (!deviceMap.has(deviceId)) {
+        return;
+      }
+      activeDeviceId = deviceId;
+      renderDevices();
+      renderLogs();
+    }
+
+    function renderDevices() {
+      const container = document.getElementById('device-list');
+      const devices = Array.from(deviceMap.values());
+
+      if (devices.length === 0) {
+        container.innerHTML = '<div class="empty">暂无客户端</div>';
+        return;
+      }
+
+      container.innerHTML = devices.map((device) => `
+        <button class="device ${device.id === activeDeviceId ? 'active' : ''}" data-device-id="${escapeHtml(device.id)}">
+          <div class="device__header">
+            <div class="device__name">
+              <span class="dot ${device.online ? '' : 'offline'}"></span>
+              <span>${escapeHtml(device.name || device.id)}</span>
+            </div>
+            <span class="badge">${device.online ? '在线' : '离线'}</span>
+          </div>
+          <div class="device__meta">${escapeHtml(device.endpoint || '未知端点')}</div>
+          <div class="device__hint">${escapeHtml(device.platform || 'Unknown')} · ${escapeHtml(device.lastSeen || '等待发现')}</div>
+        </button>
+      `).join('');
+
+      Array.from(container.querySelectorAll('[data-device-id]')).forEach((element) => {
+        element.addEventListener('click', () => {
+          setActiveDevice(element.getAttribute('data-device-id'));
+        });
+      });
+    }
+
+    function getActiveDevice() {
+      return activeDeviceId ? deviceMap.get(activeDeviceId) || null : null;
+    }
+
+    function renderLogs() {
+      const container = document.getElementById('logs');
+      const device = getActiveDevice();
+      const deviceLogs = device?.logs || [];
+
+      document.getElementById('active-device-text').textContent = device
+        ? `当前会话：${device.name || device.id} (${device.endpoint || '未知端点'})`
+        : '当前会话：未选择客户端';
+
+      document.getElementById('stats').textContent = `日志缓存：${logs.length} / ${maxLogs}`;
+
+      if (!device) {
+        container.innerHTML = '<div class="empty">请选择左侧客户端会话</div>';
+        return;
+      }
+
+      if (deviceLogs.length === 0) {
+        container.innerHTML = '<div class="empty">当前会话暂无日志</div>';
+        return;
+      }
+
+      container.innerHTML = deviceLogs.map((log) => `
+        <div class="log-line" data-level="${escapeHtml(log.level)}">[${escapeHtml(log.time)}] [${escapeHtml(log.level)}] ${escapeHtml(log.message)}</div>
+      `).join('');
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function trimLogsIfNeeded() {
+      if (logs.length <= maxLogs) {
+        return;
+      }
+
+      logs.splice(0, cleanupCount);
+      for (const device of deviceMap.values()) {
+        if (device.logs.length > maxLogs) {
+          device.logs.splice(0, cleanupCount);
+        }
+      }
+    }
+
+    function addLog(level, message, deviceId = activeDeviceId || 'device-1') {
+      const entry = {
+        time: new Date().toLocaleTimeString(),
+        level,
+        message: typeof message === 'string' ? message : JSON.stringify(message)
+      };
+
+      const device = ensureDevice({
+        id: deviceId,
+        name: deviceMap.get(deviceId)?.name || deviceId,
+        online: deviceMap.get(deviceId)?.online ?? true,
+        endpoint: deviceMap.get(deviceId)?.endpoint || '未知端点',
+        platform: deviceMap.get(deviceId)?.platform || 'Unknown',
+        lastSeen: new Date().toLocaleTimeString()
+      });
+
+      logs.push(entry);
+      device.logs.push(entry);
+      trimLogsIfNeeded();
+      renderDevices();
+      renderLogs();
+    }
+
+    function exportLogs() {
+      const content = logs.map((log) => `[${log.time}] [${log.level}] ${log.message}`).join('\n');
+      const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `mcdevconsole-logs-${Date.now()}.txt`;
+      link.click();
+      URL.revokeObjectURL(url);
+      addLog('INFO', '日志已导出到本地文件');
+    }
+
+    function updateBridgeStatus() {
+      document.getElementById('bridge-status').textContent = bridge.available
+        ? '桥接状态：WebView2 已连接'
+        : '桥接状态：浏览器模式';
+      document.getElementById('runtime-hint').textContent = bridge.available
+        ? '宿主已接管前端通信'
+        : '当前运行于 Vite / 浏览器调试模式';
+    }
+
+    function handleHostMessage(message) {
+      if (!message || typeof message !== 'object') {
+        addLog('WARN', '收到无法识别的宿主消息');
+        return;
+      }
+
+      switch (message.kind) {
+        case 'log': {
+          addLog(message.level || 'INFO', message.message || '', message.sessionId || activeDeviceId || 'device-1');
+          break;
+        }
+        case 'device.upsert': {
+          ensureDevice({
+            id: message.sessionId || message.id,
+            name: message.name || message.sessionId || message.id,
+            online: message.online ?? true,
+            endpoint: message.endpoint || '未知端点',
+            platform: message.platform || 'Unknown',
+            lastSeen: new Date().toLocaleTimeString()
+          });
+          renderDevices();
+          renderLogs();
+          break;
+        }
+        case 'device.offline': {
+          const device = deviceMap.get(message.sessionId || message.id);
+          if (device) {
+            device.online = false;
+            device.lastSeen = new Date().toLocaleTimeString();
+            renderDevices();
+            renderLogs();
+          }
+          break;
+        }
+        case 'hello': {
+          addLog('INFO', `宿主握手成功：${message.message || 'MCDevConsole Host Ready'}`);
+          break;
+        }
+        default: {
+          addLog('INFO', `收到宿主消息：${JSON.stringify(message)}`);
+          break;
+        }
+      }
+    }
+
+    function sendCommandToHost() {
+      const text = document.getElementById('command-input').value.trim();
+      if (!text) {
+        addLog('WARN', '发送已取消：输入内容为空');
+        return;
+      }
+
+      let payload;
+      try {
+        payload = JSON.parse(text);
+      } catch (error) {
+        addLog('ERROR', `JSON 解析失败：${error.message}`);
+        return;
+      }
+
+      const envelope = {
+        kind: 'web.command',
+        timestamp: Date.now(),
+        payload
+      };
+
+      const delivered = bridge.post(envelope);
+      addLog('INFO', delivered
+        ? `已发送消息到宿主：${payload.kind || 'unknown'}`
+        : `浏览器模式模拟发送：${payload.kind || 'unknown'}`);
+    }
+
+    function simulateStdout() {
+      handleHostMessage({
+        kind: 'log',
+        level: 'STDOUT',
+        message: '这是一条来自宿主模拟的标准输出日志。',
+        sessionId: activeDeviceId || 'device-1'
+      });
+    }
+
+    function simulateStderr() {
+      handleHostMessage({
+        kind: 'log',
+        level: 'STDERR',
+        message: '这是一条来自宿主模拟的错误输出日志。',
+        sessionId: activeDeviceId || 'device-1'
+      });
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    }
+
+    function bootstrap() {
+      applyTheme(localStorage.getItem(themeKey) || 'dark');
+
+      initialDevices.forEach((device) => ensureDevice({
+        ...device,
+        logs: [],
+        lastSeen: device.online ? new Date().toLocaleTimeString() : '历史会话'
+      }));
+
+      renderDevices();
+      renderLogs();
+      updateBridgeStatus();
+
+      addLog('INFO', 'MCDevConsole 前端已启动', 'device-1');
+      addLog('INFO', '主题设置保存在 localStorage', 'device-1');
+      addLog('INFO', '日志采用内存缓存，超过 10000 条后自动清理 25%', 'device-1');
+
+      document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
+      document.getElementById('export-logs').addEventListener('click', exportLogs);
+      document.getElementById('send-command').addEventListener('click', sendCommandToHost);
+      document.getElementById('simulate-stdout').addEventListener('click', simulateStdout);
+      document.getElementById('simulate-stderr').addEventListener('click', simulateStderr);
+
+      if (bridge.available) {
+        window.chrome.webview.addEventListener('message', (event) => {
+          handleHostMessage(event.data);
+        });
+
+        bridge.post({
+          kind: 'web.ready',
+          timestamp: Date.now(),
+          message: 'frontend bootstrapped'
+        });
+      }
+    }
+
+    bootstrap();
+  </script>
+</body>
+</html>
