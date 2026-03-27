@@ -9,12 +9,11 @@
 - 提供连接状态检查方法
  """
 
-import socket
+from .ub import *
 import struct
 import threading
 import time
 import json
-# import sys
 TYPE_STDOUT_LOG = 1
 TYPE_STDERR_LOG = 2
 TYPE_EXEC_CLIENT = 3
@@ -344,7 +343,6 @@ class NETSystem(object):
     def getPlatformInfoName():
         """获取平台信息字符串，支持多层级降级处理"""
         try:
-            import platform
             system = platform.system()
             release = platform.release()
             if system and release:
@@ -354,7 +352,6 @@ class NETSystem(object):
         
         # 降级方案1：只获取系统名称
         try:
-            import platform
             system = platform.system()
             if system:
                 return system
@@ -363,7 +360,6 @@ class NETSystem(object):
         
         # 降级方案2：通过 sys.platform
         try:
-            import sys
             if sys.platform:
                 return sys.platform
         except:
@@ -371,7 +367,6 @@ class NETSystem(object):
         
         # 降级方案3：通过 os.name
         try:
-            import os
             if os.name:
                 return os.name
         except:

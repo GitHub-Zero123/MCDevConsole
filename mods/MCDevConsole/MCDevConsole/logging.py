@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import sys
+from .ub import sys
 import threading
 from .containers import CachedLists
 from time import time
