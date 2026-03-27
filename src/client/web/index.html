@@ -20,6 +20,7 @@
       --danger: #ef4444;
       --offline: #737373;
       --shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
+      --divider-hover: #4a9eff;
     }
 
     :root[data-theme="light"] {
@@ -37,10 +38,21 @@
       --danger: #dc2626;
       --offline: #999999;
       --shadow: 0 12px 36px rgba(0, 0, 0, 0.08);
+      --divider-hover: #0078d4;
     }
 
     * {
       box-sizing: border-box;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    textarea,
+    input[type="text"],
+    input[type="search"],
+    .log-line {
+      -webkit-user-select: text;
+      user-select: text;
     }
 
     html,
@@ -105,6 +117,7 @@
       padding: 0 16px;
       border-bottom: 1px solid var(--border);
       background: var(--panel);
+      -webkit-app-region: drag;
       user-select: none;
     }
 
@@ -112,30 +125,96 @@
       font-size: 14px;
       font-weight: 600;
       letter-spacing: 0.3px;
+      flex: 1;
     }
 
     .titlebar__actions {
       display: flex;
       gap: 8px;
       align-items: center;
+      -webkit-app-region: no-drag;
+    }
+
+    .titlebar__button {
+      width: 36px;
+      height: 36px;
+      border: none;
+      background: transparent;
+      color: var(--text);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      transition: background 0.15s ease;
+      border-radius: 4px;
+    }
+
+    .titlebar__button:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .titlebar__button:active {
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    .titlebar__button.close:hover {
+      background: #ef4444;
+      color: white;
+    }
+
+    .titlebar__button.close:active {
+      background: #dc2626;
     }
 
     .layout {
-      display: grid;
-      grid-template-columns: 280px 1fr;
+      display: flex;
       min-height: 0;
     }
 
     .sidebar {
+      flex: 0 0 280px;
       border-right: 1px solid var(--border);
       background: var(--panel);
       padding: 12px;
       overflow: auto;
+      min-width: 150px;
+      max-width: 600px;
+    }
+
+    .sidebar-divider {
+      position: relative;
+      width: 6px;
+      background: transparent;
+      cursor: ew-resize;
+      flex: 0 0 auto;
+      z-index: 10;
+    }
+
+    .sidebar-divider::before {
+      content: '';
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 3px;
+      height: 60px;
+      border-radius: 999px;
+      background: var(--border);
+      transition: background 0.2s ease, height 0.2s ease;
+    }
+
+    .sidebar-divider:hover::before,
+    .sidebar-divider.dragging::before {
+      background: var(--divider-hover);
+      height: 100px;
     }
 
     .content {
-      display: grid;
-      grid-template-rows: minmax(0, 1fr) 240px;
+      display: flex;
+      flex: 1 1 auto;
+      flex-direction: column;
+      min-width: 0;
       min-height: 0;
       background: var(--bg);
     }
@@ -234,6 +313,17 @@
       box-shadow: var(--shadow);
     }
 
+    .panel.logs-panel {
+      flex: 1;
+      min-height: 200px;
+    }
+
+    .panel.composer-panel {
+      flex: 0 0 auto;
+      height: 240px;
+      min-height: 120px;
+    }
+
     .panel__header {
       display: flex;
       align-items: center;
@@ -297,6 +387,34 @@
       gap: 8px;
     }
 
+    .divider {
+      position: relative;
+      height: 6px;
+      background: transparent;
+      cursor: ns-resize;
+      flex: 0 0 auto;
+      z-index: 10;
+    }
+
+    .divider::before {
+      content: '';
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 60px;
+      height: 3px;
+      border-radius: 999px;
+      background: var(--border);
+      transition: background 0.2s ease, width 0.2s ease;
+    }
+
+    .divider:hover::before,
+    .divider.dragging::before {
+      background: var(--divider-hover);
+      width: 100px;
+    }
+
     .statusbar {
       display: flex;
       align-items: center;
@@ -304,9 +422,14 @@
       gap: 12px;
       padding: 0 12px;
       border-top: 1px solid var(--border);
-      background: var(--panel);
-      color: var(--muted);
+      background: #0078d4;
+      color: #ffffff;
       font-size: 12px;
+    }
+
+    :root[data-theme="light"] .statusbar {
+      background: #0078d4;
+      color: #ffffff;
     }
 
     .empty {
@@ -331,17 +454,35 @@
         <button id="simulate-stderr">模拟 STDERR</button>
         <button id="theme-toggle">切换主题</button>
         <button id="export-logs">导出日志</button>
+        <div style="flex: 1;"></div>
+        <button id="titlebar-minimize" class="titlebar__button" title="最小化">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <rect y="7" width="16" height="2" rx="1"/>
+          </svg>
+        </button>
+        <button id="titlebar-maximize" class="titlebar__button" title="最大化">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <rect x="2" y="2" width="12" height="12" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/>
+          </svg>
+        </button>
+        <button id="titlebar-close" class="titlebar__button close" title="关闭">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M2.5 2.5L13.5 13.5M13.5 2.5L2.5 13.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </button>
       </div>
     </header>
 
     <main class="layout">
-      <aside class="sidebar">
+      <aside class="sidebar" id="sidebar">
         <h2 class="section-title">客户端列表</h2>
         <div class="device-list" id="device-list"></div>
       </aside>
 
+      <div class="sidebar-divider" id="sidebar-divider"></div>
+
       <section class="content">
-        <div class="panel">
+        <div class="panel logs-panel" id="logs-panel">
           <div class="panel__header">
             <div>
               <h2 class="section-title">日志面板</h2>
@@ -352,19 +493,23 @@
           <div class="logs" id="logs"></div>
         </div>
 
-        <div class="panel composer">
-          <div class="composer__toolbar">
-            <span>调试桥接：向宿主发送 JSON 指令，后续可对接 typeId 3 / 4</span>
-            <span id="bridge-status">桥接状态：浏览器模式</span>
-          </div>
-          <textarea id="command-input" spellcheck="false">{
+        <div class="divider" id="divider"></div>
+
+        <div class="panel composer-panel" id="composer-panel">
+          <div class="composer">
+            <div class="composer__toolbar">
+              <span>调试桥接：向宿主发送 JSON 指令，后续可对接 typeId 3 / 4</span>
+              <span id="bridge-status">桥接状态：浏览器模式</span>
+            </div>
+            <textarea id="command-input" spellcheck="false">{
   "kind": "exec",
   "target": "client",
   "sessionId": "device-1",
   "code": "console.log('hello from web')"
 }</textarea>
-          <div class="composer__actions">
-            <button id="send-command">发送到宿主</button>
+            <div class="composer__actions">
+              <button id="send-command">发送到宿主</button>
+            </div>
           </div>
         </div>
       </section>
@@ -401,6 +546,81 @@
         return false;
       }
     };
+
+    // 可拖拽分隔条逻辑
+    const divider = document.getElementById('divider');
+    const logsPanel = document.getElementById('logs-panel');
+    const composerPanel = document.getElementById('composer-panel');
+    let isDragging = false;
+    let startY = 0;
+    let startLogsHeight = 0;
+    let startComposerHeight = 0;
+
+    divider.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      startY = e.clientY;
+      startLogsHeight = logsPanel.offsetHeight;
+      startComposerHeight = composerPanel.offsetHeight;
+      divider.classList.add('dragging');
+      document.body.style.cursor = 'ns-resize';
+      e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+
+      const deltaY = e.clientY - startY;
+      const newLogsHeight = startLogsHeight + deltaY;
+      const newComposerHeight = startComposerHeight - deltaY;
+
+      if (newLogsHeight >= 200 && newComposerHeight >= 120) {
+        logsPanel.style.flex = `0 0 ${newLogsHeight}px`;
+        composerPanel.style.height = `${newComposerHeight}px`;
+      }
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (isDragging) {
+        isDragging = false;
+        divider.classList.remove('dragging');
+        document.body.style.cursor = '';
+      }
+    });
+
+    // 侧边栏拖拽逻辑
+    const sidebarDivider = document.getElementById('sidebar-divider');
+    const sidebar = document.getElementById('sidebar');
+    let isSidebarDragging = false;
+    let sidebarStartX = 0;
+    let sidebarStartWidth = 0;
+
+    sidebarDivider.addEventListener('mousedown', (e) => {
+      isSidebarDragging = true;
+      sidebarStartX = e.clientX;
+      sidebarStartWidth = sidebar.offsetWidth;
+      sidebarDivider.classList.add('dragging');
+      document.body.style.cursor = 'ew-resize';
+      e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!isSidebarDragging) return;
+
+      const deltaX = e.clientX - sidebarStartX;
+      const newWidth = sidebarStartWidth + deltaX;
+
+      if (newWidth >= 150 && newWidth <= 600) {
+        sidebar.style.flex = `0 0 ${newWidth}px`;
+      }
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (isSidebarDragging) {
+        isSidebarDragging = false;
+        sidebarDivider.classList.remove('dragging');
+        document.body.style.cursor = '';
+      }
+    });
 
     function applyTheme(theme) {
       document.documentElement.setAttribute('data-theme', theme);
@@ -555,6 +775,28 @@
         : '当前运行于 Vite / 浏览器调试模式';
     }
 
+    function updateMaximizeButton(isMaximized) {
+      const btn = document.getElementById('titlebar-maximize');
+      if (!btn) return;
+
+      if (isMaximized) {
+        btn.title = '还原';
+        btn.innerHTML = `
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <rect x="2" y="4" width="5" height="5" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/>
+            <rect x="9" y="7" width="5" height="5" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/>
+          </svg>
+        `;
+      } else {
+        btn.title = '最大化';
+        btn.innerHTML = `
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <rect x="2" y="2" width="12" height="12" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/>
+          </svg>
+        `;
+      }
+    }
+
     function handleHostMessage(message) {
       if (!message || typeof message !== 'object') {
         addLog('WARN', '收到无法识别的宿主消息');
@@ -587,6 +829,10 @@
             renderDevices();
             renderLogs();
           }
+          break;
+        }
+        case 'window.state': {
+          updateMaximizeButton(message.maximized === true);
           break;
         }
         case 'hello': {
@@ -654,6 +900,15 @@
         .replaceAll("'", '&#39;');
     }
 
+    function sendWindowCommand(command) {
+      const message = {
+        kind: 'window.command',
+        command: command,
+        timestamp: Date.now()
+      };
+      bridge.post(message);
+    }
+
     function bootstrap() {
       applyTheme(localStorage.getItem(themeKey) || 'dark');
 
@@ -676,6 +931,17 @@
       document.getElementById('send-command').addEventListener('click', sendCommandToHost);
       document.getElementById('simulate-stdout').addEventListener('click', simulateStdout);
       document.getElementById('simulate-stderr').addEventListener('click', simulateStderr);
+
+      // 标题栏窗口控制按钮
+      document.getElementById('titlebar-minimize').addEventListener('click', () => {
+        sendWindowCommand('minimize');
+      });
+      document.getElementById('titlebar-maximize').addEventListener('click', () => {
+        sendWindowCommand('toggle-maximize');
+      });
+      document.getElementById('titlebar-close').addEventListener('click', () => {
+        sendWindowCommand('close');
+      });
 
       if (bridge.available) {
         window.chrome.webview.addEventListener('message', (event) => {

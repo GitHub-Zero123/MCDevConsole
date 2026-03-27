@@ -1,5 +1,7 @@
 #include "MCDevConsole/AppWindow.h"
 
+#include <windowsx.h>
+
 namespace MCDevConsole {
 
 bool AppWindow::Create(HINSTANCE instance, int show_command) {
@@ -10,10 +12,10 @@ bool AppWindow::Create(HINSTANCE instance, int show_command) {
     }
 
     hwnd_ = CreateWindowExW(
-        0,
+        WS_EX_NOREDIRECTIONBITMAP,
         kWindowClassName,
         kWindowTitle,
-        WS_OVERLAPPEDWINDOW,
+        WS_POPUP | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_THICKFRAME,
         CW_USEDEFAULT,
         CW_USEDEFAULT,
         kInitialWidth,
@@ -73,15 +75,91 @@ bool AppWindow::RegisterWindowClass() {
     window_class.lpfnWndProc = &AppWindow::WindowProc;
     window_class.hInstance = instance_;
     window_class.hCursor = LoadCursorW(nullptr, IDC_ARROW);
-    window_class.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
+    window_class.hbrBackground = nullptr;
     window_class.lpszClassName = kWindowClassName;
 
     const ATOM atom = RegisterClassExW(&window_class);
     return atom != 0 || GetLastError() == ERROR_CLASS_ALREADY_EXISTS;
 }
 
+bool AppWindow::IsInTitleBar(int y) const noexcept {
+    return y >= 0 && y < kTitleBarHeight;
+}
+
+void AppWindow::HandleNCHitTest(HWND hwnd, int x, int y) {
+    RECT rect;
+    GetWindowRect(hwnd, &rect);
+
+    int width = rect.right - rect.left;
+    int height = rect.bottom - rect.top;
+
+    // 四个角落
+    if (x < kResizeMargin && y < kResizeMargin) {
+        SetCursor(LoadCursorW(nullptr, IDC_SIZENWSE));
+    } else if (x >= width - kResizeMargin && y < kResizeMargin) {
+        SetCursor(LoadCursorW(nullptr, IDC_SIZENESW));
+    } else if (x < kResizeMargin && y >= height - kResizeMargin) {
+        SetCursor(LoadCursorW(nullptr, IDC_SIZENESW));
+    } else if (x >= width - kResizeMargin && y >= height - kResizeMargin) {
+        SetCursor(LoadCursorW(nullptr, IDC_SIZENWSE));
+    }
+    // 四条边
+    else if (x < kResizeMargin) {
+        SetCursor(LoadCursorW(nullptr, IDC_SIZEWE));
+    } else if (x >= width - kResizeMargin) {
+        SetCursor(LoadCursorW(nullptr, IDC_SIZEWE));
+    } else if (y < kResizeMargin) {
+        SetCursor(LoadCursorW(nullptr, IDC_SIZENS));
+    } else if (y >= height - kResizeMargin) {
+        SetCursor(LoadCursorW(nullptr, IDC_SIZENS));
+    } else {
+        SetCursor(LoadCursorW(nullptr, IDC_ARROW));
+    }
+}
+
 LRESULT AppWindow::HandleMessage(UINT message, WPARAM w_param, LPARAM l_param) {
     switch (message) {
+    case WM_NCHITTEST: {
+        int x = GET_X_LPARAM(l_param);
+        int y = GET_Y_LPARAM(l_param);
+        RECT rect;
+        GetWindowRect(hwnd_, &rect);
+        x -= rect.left;
+        y -= rect.top;
+
+        HandleNCHitTest(hwnd_, x, y);
+
+        int width = rect.right - rect.left;
+        int height = rect.bottom - rect.top;
+
+        // 标题栏拖拽（优先级最高，在边框检查之前）
+        if (IsInTitleBar(y)) {
+            return HTCAPTION;
+        }
+
+        // 四个角落
+        if (x < kResizeMargin && y < kResizeMargin) {
+            return HTTOPLEFT;
+        } else if (x >= width - kResizeMargin && y < kResizeMargin) {
+            return HTTOPRIGHT;
+        } else if (x < kResizeMargin && y >= height - kResizeMargin) {
+            return HTBOTTOMLEFT;
+        } else if (x >= width - kResizeMargin && y >= height - kResizeMargin) {
+            return HTBOTTOMRIGHT;
+        }
+        // 四条边
+        else if (x < kResizeMargin) {
+            return HTLEFT;
+        } else if (x >= width - kResizeMargin) {
+            return HTRIGHT;
+        } else if (y < kResizeMargin) {
+            return HTTOP;
+        } else if (y >= height - kResizeMargin) {
+            return HTBOTTOM;
+        }
+
+        return HTCLIENT;
+    }
     case WM_SIZE:
         if (webview_host_) {
             webview_host_->ResizeToClientArea();

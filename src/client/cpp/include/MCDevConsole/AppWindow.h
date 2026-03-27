@@ -27,11 +27,15 @@ private:
     static constexpr const wchar_t* kWindowTitle = L"MCDevConsole";
     static constexpr int kInitialWidth = 1280;
     static constexpr int kInitialHeight = 800;
+    static constexpr int kTitleBarHeight = 48;
+    static constexpr int kResizeMargin = 10;
 
     static LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM w_param, LPARAM l_param);
 
     bool RegisterWindowClass();
     LRESULT HandleMessage(UINT message, WPARAM w_param, LPARAM l_param);
+    void HandleNCHitTest(HWND hwnd, int x, int y);
+    bool IsInTitleBar(int y) const noexcept;
 
     HINSTANCE instance_ = nullptr;
     HWND hwnd_ = nullptr;

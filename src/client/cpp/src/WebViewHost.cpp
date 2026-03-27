@@ -27,18 +27,40 @@ bool WebViewHost::Initialize(HWND parent_window) {
                     [this](ICoreWebView2* sender, ICoreWebView2WebMessageReceivedEventArgs* args) -> HRESULT {
                         wchar_t* message_raw = nullptr;
                         args->get_WebMessageAsJson(&message_raw);
-                        
+
                         if (message_raw) {
                             std::wstring message(message_raw);
                             CoTaskMemFree(message_raw);
-                            
+
+                            if (message.find(L"\"kind\":\"window.command\"") != std::wstring::npos) {
+                                if (parent_window_ != nullptr) {
+                                    if (message.find(L"\"command\":\"minimize\"") != std::wstring::npos) {
+                                        ShowWindow(parent_window_, SW_MINIMIZE);
+                                    } else if (message.find(L"\"command\":\"toggle-maximize\"") != std::wstring::npos) {
+                                        if (IsZoomed(parent_window_)) {
+                                            ShowWindow(parent_window_, SW_RESTORE);
+                                        } else {
+                                            ShowWindow(parent_window_, SW_MAXIMIZE);
+                                        }
+                                    } else if (message.find(L"\"command\":\"close\"") != std::wstring::npos) {
+                                        PostMessageW(parent_window_, WM_CLOSE, 0, 0);
+                                    }
+                                }
+
+                                std::wstring response = L"{\"kind\":\"window.state\",\"maximized\":";
+                                response += (parent_window_ != nullptr && IsZoomed(parent_window_)) ? L"true" : L"false";
+                                response += L"}";
+                                PostJsonMessage(response);
+                                return S_OK;
+                            }
+
                             // 简单回显测试：收到前端消息后回传确认
                             std::wstring response = L"{\"kind\":\"host.echo\",\"received\":true,\"original\":";
                             response += message;
                             response += L"}";
                             PostJsonMessage(response);
                         }
-                        
+
                         return S_OK;
                     }).Get(),
                 nullptr);
