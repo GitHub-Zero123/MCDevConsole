@@ -479,10 +479,6 @@ void NetworkServer::HandlePacket(const std::shared_ptr<ClientSession>& session, 
 
     const std::string payload(packet.data.begin(), packet.data.end());
     const std::string time_text = ExtractJsonStringField(payload, "time");
-    const std::string message_text = [&payload]() -> std::string {
-        const std::string extracted = ExtractJsonStringField(payload, "message");
-        return extracted.empty() ? payload : extracted;
-    }();
     const std::string platform_text = ExtractJsonStringField(payload, "platform");
     const std::string session_name = ExtractJsonStringField(payload, "name");
 
@@ -501,6 +497,70 @@ void NetworkServer::HandlePacket(const std::shared_ptr<ClientSession>& session, 
     }
 
     if (packet.type_id == Protocol::TYPE_STDOUT_LOG || packet.type_id == Protocol::TYPE_STDERR_LOG) {
+        // 检测 message 字段是否为数组
+        const std::size_t msg_start = payload.find("\"message\":");
+        if (msg_start != std::string::npos) {
+            const std::size_t value_start = payload.find_first_not_of(" \t\n\r", msg_start + 10);
+            if (value_start != std::string::npos && payload[value_start] == '[') {
+                // 批量消息：解析数组中的每个字符串
+                std::size_t pos = value_start + 1;
+                while (pos < payload.size()) {
+                    pos = payload.find('"', pos);
+                    if (pos == std::string::npos) break;
+                    
+                    std::string msg;
+                    bool escaping = false;
+                    for (++pos; pos < payload.size(); ++pos) {
+                        const char ch = payload[pos];
+                        if (escaping) {
+                            switch (ch) {
+                            case 'n': msg.push_back('\n'); break;
+                            case 'r': msg.push_back('\r'); break;
+                            case 't': msg.push_back('\t'); break;
+                            case '\\': msg.push_back('\\'); break;
+                            case '"': msg.push_back('"'); break;
+                            default: msg.push_back(ch); break;
+                            }
+                            escaping = false;
+                        } else if (ch == '\\') {
+                            escaping = true;
+                        } else if (ch == '"') {
+                            break;
+                        } else {
+                            msg.push_back(ch);
+                        }
+                    }
+                    
+                    if (!msg.empty() && msg.find(" [INFO][Engine] ") == std::string::npos) {
+                        const std::wstring level = packet.type_id == Protocol::TYPE_STDERR_LOG
+                            ? L"STDERR"
+                            : ClassifyStdoutLevel(msg);
+
+                        webview_host_->PostJsonMessage(
+                            MakeLogJson(
+                                Utf8ToWide(session->session_id),
+                                level,
+                                Utf8ToWide(msg),
+                                Utf8ToWide(time_text),
+                                Utf8ToWide(session->display_name.empty() ? session->session_id : session->display_name),
+                                Utf8ToWide(session->endpoint),
+                                Utf8ToWide(session->platform))
+                        );
+                    }
+                    
+                    pos = payload.find_first_not_of(" \t\n\r,", pos + 1);
+                    if (pos == std::string::npos || payload[pos] == ']') break;
+                }
+                return;
+            }
+        }
+
+        // 单条消息
+        const std::string message_text = [&payload]() -> std::string {
+            const std::string extracted = ExtractJsonStringField(payload, "message");
+            return extracted.empty() ? payload : extracted;
+        }();
+
         if (packet.type_id == Protocol::TYPE_STDOUT_LOG
             && message_text.find(" [INFO][Engine] ") != std::string::npos) {
             return;

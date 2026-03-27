@@ -65,6 +65,13 @@ class NETSystem(object):
         self.lastReconnectTime = 0
         self.listenThread = None
         self.discoveryThread = None
+        self.connectedHandler = None
+    
+    def setConnectedHandler(self, handler):
+        """ 设置连接成功回调函数，连接成功时会调用 handler() """
+        # type: (callable) -> None
+        self.connectedHandler = handler
+        return self
     
     def registerHandler(self, type_id, handler):
         """ 注册消息处理器 """
@@ -85,18 +92,18 @@ class NETSystem(object):
             return self.connected and self.sock is not None
     
     def send_stdout(self, message, metadata=None):
-        """ 发送 stdout 日志 """
-        # type: (str, dict | None) -> bool
+        """ 发送 stdout 日志，支持批量发送 (message 可以是 str 或 list) """
+        # type: (str | list, dict | None) -> bool
         return self._send_log(TYPE_STDOUT_LOG, message, metadata)
     
     def send_stderr(self, message, metadata=None):
-        """ 发送 stderr 日志 """
-        # type: (str, dict | None) -> bool
+        """ 发送 stderr 日志，支持批量发送 (message 可以是 str 或 list) """
+        # type: (str | list, dict | None) -> bool
         return self._send_log(TYPE_STDERR_LOG, message, metadata)
     
     def _send_log(self, typeId, message, metadata=None):
-        """ 内部方法：发送日志 """
-        # type: (int, str, dict | None) -> bool
+        """ 内部方法：发送日志，message 可以是字符串或列表 """
+        # type: (int, str | list[str], dict | None) -> bool
         if not self.isConnected():
             return False
 
@@ -217,7 +224,7 @@ class NETSystem(object):
             print("[NETSystem] UDP 发现线程已退出")
     
     def _threadListenLoop(self):
-        """内部线程：TCP 监听循环 - 周期性尝试连接和接收数据"""
+        """ 内部线程：TCP 监听循环 - 周期性尝试连接和接收数据 """
         print("[NETSystem] TCP 监听线程已启动")
         
         while True:
@@ -290,7 +297,7 @@ class NETSystem(object):
         print("[NETSystem] TCP 监听线程已退出")
     
     def _tryConnect(self, host, port):
-        """尝试连接到服务器"""
+        """ 尝试连接到服务器 """
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(SOCKET_TIMEOUT)
@@ -303,7 +310,8 @@ class NETSystem(object):
             
             # 连接成功后立即发送初始化消息，避免服务器超时断开
             self._sendHandshake()
-            
+            if self.connectedHandler:
+                self.connectedHandler()
             # print("[NETSystem] 已连接到调试服务器，地址：%s:%d" % (host, port))
         except socket.error:
             # 连接失败是正常的，会在下一个周期重试
