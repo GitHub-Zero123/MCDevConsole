@@ -13,5 +13,5 @@ os = std.unsafeImpModule("os")
 socket = std.unsafeImpModule("socket")
 platform = std.unsafeImpModule("platform")
 
-mCompile = std.unsafeImpModule("builtins").compile
-mEval = std.unsafeImpModule("builtins").eval
+mCompile = getattr(std.unsafeImpModule, "__globals__")["__builtins__"]["compile"]
+mEval = getattr(std.unsafeImpModule, "__globals__")["__builtins__"]["eval"]
