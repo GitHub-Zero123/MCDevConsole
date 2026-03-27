@@ -1,5 +1,9 @@
 #include "MCDevConsole/WebViewHost.h"
 #include "MCDevConsole/AppWindow.h"
+
+#ifdef MCDEVCONSOLE_EMBED_WEB_RESOURCE
+#include "MCDevConsole/WebResource.hpp"
+#endif
  
 #include <shellapi.h>
 #include <wrl/event.h>
@@ -88,6 +92,12 @@ bool WebViewHost::Initialize(HWND parent_window) {
                 if (SUCCEEDED(settings.As(&settings9))) {
                     settings9->put_IsNonClientRegionSupportEnabled(TRUE);
                 }
+                
+#ifndef _DEBUG
+                // Release 模式下禁用开发者工具
+                settings->put_AreDevToolsEnabled(FALSE);
+                settings->put_AreDefaultContextMenusEnabled(FALSE);
+#endif
             }
 
             // 设置 WebView2 背景色为深色，防止导航期间白屏闪烁，并让四角露出像素跟主题
@@ -194,17 +204,113 @@ bool WebViewHost::Initialize(HWND parent_window) {
 #ifdef _DEBUG
             webview_->Navigate(L"http://localhost:5173");
 #else
+    #ifdef MCDEVCONSOLE_EMBED_WEB_RESOURCE
+            // Release 模式：注册资源请求拦截器
+            Microsoft::WRL::ComPtr<ICoreWebView2Environment> env_ptr;
+            webview_->AddWebResourceRequestedFilter(L"*", COREWEBVIEW2_WEB_RESOURCE_CONTEXT_ALL);
+            webview_->add_WebResourceRequested(
+                Microsoft::WRL::Callback<ICoreWebView2WebResourceRequestedEventHandler>(
+                    [env_ptr](ICoreWebView2* sender, ICoreWebView2WebResourceRequestedEventArgs* args) mutable -> HRESULT {
+                        Microsoft::WRL::ComPtr<ICoreWebView2WebResourceRequest> request;
+                        args->get_Request(&request);
+                        
+                        wchar_t* uri_raw = nullptr;
+                        request->get_Uri(&uri_raw);
+                        if (!uri_raw) return S_OK;
+                        
+                        std::wstring uri(uri_raw);
+                        CoTaskMemFree(uri_raw);
+                        
+                        // 提取路径部分
+                        std::string path;
+                        size_t scheme_end = uri.find(L"://");
+                        if (scheme_end != std::wstring::npos) {
+                            size_t path_start = uri.find(L'/', scheme_end + 3);
+                            if (path_start != std::wstring::npos) {
+                                std::wstring wpath = uri.substr(path_start);
+                                path = WideToUtf8(wpath);
+                            }
+                        }
+                        
+                        if (path.empty()) path = "/index.html";
+                        
+                        // 查找资源
+                        auto it = WebResource::resourceMap.find(path);
+                        if (it == WebResource::resourceMap.end() || it->second.first == nullptr) {
+                            return S_OK;
+                        }
+                        
+                        // 创建内存流
+                        Microsoft::WRL::ComPtr<IStream> stream;
+                        HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, it->second.second);
+                        if (!hMem) return E_OUTOFMEMORY;
+                        
+                        void* pMem = GlobalLock(hMem);
+                        if (pMem) {
+                            memcpy(pMem, it->second.first, it->second.second);
+                            GlobalUnlock(hMem);
+                            CreateStreamOnHGlobal(hMem, TRUE, &stream);
+                        }
+                        
+                        if (!stream) {
+                            GlobalFree(hMem);
+                            return E_FAIL;
+                        }
+                        
+                        // 确定 MIME 类型
+                        std::wstring mime = L"application/octet-stream";
+                        if (path.size() >= 5 && path.substr(path.size() - 5) == ".html") mime = L"text/html";
+                        else if (path.size() >= 3 && path.substr(path.size() - 3) == ".js") mime = L"application/javascript";
+                        else if (path.size() >= 4 && path.substr(path.size() - 4) == ".css") mime = L"text/css";
+                        else if (path.size() >= 5 && path.substr(path.size() - 5) == ".json") mime = L"application/json";
+                        else if (path.size() >= 4 && path.substr(path.size() - 4) == ".png") mime = L"image/png";
+                        else if (path.size() >= 4 && (path.substr(path.size() - 4) == ".jpg" || path.substr(path.size() - 5) == ".jpeg")) mime = L"image/jpeg";
+                        else if (path.size() >= 4 && path.substr(path.size() - 4) == ".svg") mime = L"image/svg+xml";
+                        
+                        // 获取环境对象
+                        if (!env_ptr) {
+                            Microsoft::WRL::ComPtr<ICoreWebView2_2> webview2;
+                            if (SUCCEEDED(sender->QueryInterface(IID_PPV_ARGS(&webview2)))) {
+                                webview2->get_Environment(&env_ptr);
+                            }
+                        }
+                        
+                        if (env_ptr) {
+                            Microsoft::WRL::ComPtr<ICoreWebView2WebResourceResponse> response;
+                            env_ptr->CreateWebResourceResponse(stream.Get(), 200, L"OK",
+                                (L"Content-Type: " + mime).c_str(), &response);
+                            args->put_Response(response.Get());
+                        }
+                        
+                        return S_OK;
+                    }).Get(),
+                nullptr);
+            
+            // 导航到虚拟 URL
+            webview_->Navigate(L"https://mcdevconsole.local/index.html");
+    #else
+            // Fallback：使用文件夹映射
             wchar_t exe_path[MAX_PATH]{};
             GetModuleFileNameW(nullptr, exe_path, MAX_PATH);
             
-            std::wstring html_path = exe_path;
-            size_t last_slash = html_path.find_last_of(L"\\/");
+            std::wstring web_folder = exe_path;
+            size_t last_slash = web_folder.find_last_of(L"\\/");
             if (last_slash != std::wstring::npos) {
-                html_path = html_path.substr(0, last_slash);
+                web_folder = web_folder.substr(0, last_slash);
             }
-            html_path += L"\\web\\index.html";
+            web_folder += L"\\web";
             
-            NavigateToFile(html_path);
+            Microsoft::WRL::ComPtr<ICoreWebView2_3> webview3;
+            if (SUCCEEDED(webview_.As(&webview3))) {
+                webview3->SetVirtualHostNameToFolderMapping(
+                    L"mcdevconsole.local",
+                    web_folder.c_str(),
+                    COREWEBVIEW2_HOST_RESOURCE_ACCESS_KIND_DENY_CORS
+                );
+            }
+            
+            webview_->Navigate(L"https://mcdevconsole.local/index.html");
+    #endif
 #endif
 
             // 导航完成后发送握手消息
