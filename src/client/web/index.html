@@ -76,7 +76,7 @@
       border: 1px solid var(--border);
       background: var(--panel-2);
       color: var(--text);
-      border-radius: 10px;
+      border-radius: 6px;
       padding: 7px 12px;
       cursor: pointer;
       transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
@@ -97,7 +97,7 @@
       background: var(--panel-3);
       color: var(--text);
       border: 1px solid var(--border);
-      border-radius: 10px;
+      border-radius: 6px;
       padding: 10px 12px;
       min-height: 120px;
       outline: none;
@@ -105,7 +105,7 @@
 
     .app {
       display: grid;
-      grid-template-rows: 48px 1fr 28px;
+      grid-template-rows: 40px 1fr 28px;
       width: 100%;
       height: 100%;
     }
@@ -122,10 +122,27 @@
     }
 
     .titlebar__title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
       font-size: 14px;
       font-weight: 600;
       letter-spacing: 0.3px;
       flex: 1;
+    }
+
+    .titlebar__icon {
+      width: 20px;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--accent);
+      border: 1.5px solid var(--accent);
+      border-radius: 3px;
+      flex-shrink: 0;
     }
 
     .titlebar__actions {
@@ -136,8 +153,8 @@
     }
 
     .titlebar__button {
-      width: 36px;
-      height: 36px;
+      width: 30px;
+      height: 30px;
       border: none;
       background: transparent;
       color: var(--text);
@@ -145,25 +162,33 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 18px;
-      transition: background 0.15s ease;
-      border-radius: 4px;
+      font-size: 16px;
+      transition: background 0.12s ease;
+      border-radius: 3px;
+      flex: 0 0 auto;
+    }
+
+    .titlebar__button svg {
+      width: 15px;
+      height: 15px;
+      display: block;
+      flex: 0 0 auto;
     }
 
     .titlebar__button:hover {
-      background: rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.08);
     }
 
     .titlebar__button:active {
-      background: rgba(255, 255, 255, 0.15);
+      background: rgba(255, 255, 255, 0.12);
     }
 
     :root[data-theme="light"] .titlebar__button:hover {
-      background: rgba(0, 0, 0, 0.08);
+      background: rgba(0, 0, 0, 0.06);
     }
 
     :root[data-theme="light"] .titlebar__button:active {
-      background: rgba(0, 0, 0, 0.14);
+      background: rgba(0, 0, 0, 0.1);
     }
 
     .titlebar__button.close:hover {
@@ -172,15 +197,6 @@
     }
 
     .titlebar__button.close:active {
-      background: #dc2626;
-    }
-
-    :root[data-theme="light"] .titlebar__button.close:hover {
-      background: #ef4444;
-      color: white;
-    }
-
-    :root[data-theme="light"] .titlebar__button.close:active {
       background: #dc2626;
       color: white;
     }
@@ -202,30 +218,17 @@
 
     .sidebar-divider {
       position: relative;
-      width: 6px;
-      background: transparent;
+      width: 1px;
+      background: var(--border);
       cursor: ew-resize;
       flex: 0 0 auto;
       z-index: 10;
+      transition: background 0.2s ease;
     }
 
-    .sidebar-divider::before {
-      content: '';
-      position: absolute;
-      left: 50%;
-      top: 50%;
-      transform: translate(-50%, -50%);
-      width: 3px;
-      height: 60px;
-      border-radius: 999px;
-      background: var(--border);
-      transition: background 0.2s ease, height 0.2s ease;
-    }
-
-    .sidebar-divider:hover::before,
-    .sidebar-divider.dragging::before {
+    .sidebar-divider:hover,
+    .sidebar-divider.dragging {
       background: var(--divider-hover);
-      height: 100px;
     }
 
     .content {
@@ -253,31 +256,34 @@
     }
 
     .device {
-      padding: 10px 12px;
+      padding: 12px;
       border: 1px solid var(--border);
-      border-radius: 12px;
-      background: var(--panel-2);
-      box-shadow: var(--shadow);
+      border-radius: 8px;
+      background: linear-gradient(180deg, var(--panel-2), var(--panel));
+      box-shadow: none;
+      text-align: left;
     }
 
     .device.active {
-      outline: 1px solid var(--accent);
+      border-color: color-mix(in srgb, var(--divider-hover) 50%, var(--border));
+      box-shadow: inset 2px 0 0 var(--divider-hover);
     }
 
     .device__header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 8px;
+      gap: 10px;
+      margin-bottom: 10px;
     }
 
     .device__name {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
+      min-width: 0;
       font-size: 14px;
       font-weight: 600;
-      min-width: 0;
     }
 
     .device__name span:last-child {
@@ -286,11 +292,44 @@
       white-space: nowrap;
     }
 
-    .device__meta,
-    .device__hint {
-      margin-top: 6px;
+    .device__meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 8px;
       font-size: 12px;
       color: var(--muted);
+      font-family: Consolas, "Courier New", monospace;
+    }
+
+    .device__hint {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .device__label {
+      color: var(--muted);
+      min-width: 34px;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      font-size: 11px;
+    }
+
+    .device__value {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--text);
+    }
+
+    .device__platform {
+      color: var(--text);
     }
 
     .dot {
@@ -299,30 +338,40 @@
       border-radius: 50%;
       background: var(--success);
       flex: 0 0 auto;
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--success) 16%, transparent);
     }
 
     .dot.offline {
       background: var(--offline);
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--offline) 18%, transparent);
     }
 
     .badge {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      min-width: 46px;
-      padding: 2px 8px;
+      min-width: 48px;
+      padding: 3px 10px;
       border-radius: 999px;
       font-size: 11px;
       border: 1px solid var(--border);
-      color: var(--muted);
+      color: var(--text);
       background: var(--panel-3);
+    }
+
+    .badge.online {
+      border-color: color-mix(in srgb, var(--success) 30%, var(--border));
+    }
+
+    .badge.offline {
+      border-color: color-mix(in srgb, var(--offline) 40%, var(--border));
     }
 
     .panel {
       margin: 12px;
       padding: 12px;
       border: 1px solid var(--border);
-      border-radius: 14px;
+      border-radius: 8px;
       background: var(--panel);
       min-height: 0;
       overflow: hidden;
@@ -338,8 +387,17 @@
 
     .panel.composer-panel {
       flex: 0 0 auto;
-      height: 240px;
-      min-height: 120px;
+      min-height: 44px;
+      padding-top: 10px;
+      padding-bottom: 10px;
+      overflow: hidden;
+      transition: min-height 0.18s ease, padding 0.18s ease;
+    }
+
+    .panel.composer-panel.expanded {
+      min-height: clamp(164px, 34vh, 280px);
+      padding-top: 12px;
+      padding-bottom: 12px;
     }
 
     .panel__header {
@@ -367,7 +425,7 @@
 
     .log-line {
       padding: 8px 10px;
-      border-radius: 10px;
+      border-radius: 4px;
       background: var(--panel-2);
       border: 1px solid var(--border);
       line-height: 1.45;
@@ -384,10 +442,15 @@
     }
 
     .composer {
-      display: grid;
-      grid-template-rows: auto 1fr auto;
+      display: flex;
+      flex-direction: column;
       gap: 10px;
       min-height: 0;
+      height: 100%;
+    }
+
+    .composer-panel:not(.expanded) .composer {
+      gap: 0;
     }
 
     .composer__toolbar {
@@ -395,42 +458,219 @@
       justify-content: space-between;
       align-items: center;
       gap: 12px;
+      min-height: 24px;
       color: var(--muted);
       font-size: 12px;
+      cursor: pointer;
+      user-select: none;
     }
 
-    .composer__actions {
+    .composer__title {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--text);
+      font-weight: 600;
+      line-height: 1;
+    }
+
+    .composer__chevron {
+      width: 11px;
+      height: 11px;
+      display: inline-block;
+      flex: 0 0 auto;
+      border-right: 1.5px solid var(--muted);
+      border-bottom: 1.5px solid var(--muted);
+      transform: rotate(45deg);
+      transform-origin: center;
+      transition: transform 0.15s ease;
+    }
+
+    .composer-panel.expanded .composer__chevron {
+      transform: rotate(-135deg);
+    }
+
+    .composer__body {
+      display: none;
+      min-height: 0;
+      padding-top: 2px;
+    }
+
+    .composer-panel.expanded .composer__body {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      gap: 10px;
+      min-height: 0;
+      overflow: hidden;
+      flex: 1 1 auto;
+    }
+
+    .composer__controls {
       display: flex;
-      justify-content: flex-end;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: nowrap;
+      min-width: 0;
+    }
+
+    .composer__target-wrap {
+      display: flex;
+      align-items: center;
       gap: 8px;
+      min-width: 0;
+      flex: 1 1 auto;
+    }
+
+    .composer__target {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px;
+      border: 1px solid var(--border);
+      background: var(--panel-3);
+      border-radius: 8px;
+      min-width: 0;
+      flex: 1 1 auto;
+    }
+
+    .composer__target-button {
+      min-width: 0;
+      padding: 7px 10px;
+      border: none;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--muted);
+      font-size: 12px;
+      flex: 1 1 0;
+      white-space: nowrap;
+    }
+
+    .composer__target-button.active {
+      background: var(--panel);
+      color: var(--text);
+      box-shadow: inset 0 0 0 1px var(--border);
+    }
+
+    .composer__run-button {
+      width: 36px;
+      height: 36px;
+      min-width: 36px;
+      padding: 0;
+      border: 1px solid #0078d4;
+      border-radius: 8px;
+      background: #0078d4;
+      color: #ffffff;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+    }
+
+    .composer__run-button:hover {
+      background: #1984d8;
+      border-color: #1984d8;
+    }
+
+    .composer__run-button:active {
+      background: #006cbd;
+      border-color: #006cbd;
+    }
+
+    .composer__hint {
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .code-editor {
+      position: relative;
+      min-height: 72px;
+      height: 100%;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--panel-3);
+      overflow: hidden;
+    }
+
+    .code-editor__highlight,
+    .code-editor__input {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      padding: 12px 14px;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      white-space: pre;
+      overflow: auto;
+      tab-size: 4;
+    }
+
+    .code-editor__highlight {
+      position: absolute;
+      inset: 0;
+      color: var(--text);
+      pointer-events: none;
+      overflow: hidden;
+    }
+
+    .code-editor__input {
+      position: relative;
+      z-index: 1;
+      resize: none;
+      border: none;
+      outline: none;
+      background: transparent;
+      color: transparent;
+      caret-color: var(--text);
+      border-radius: 0;
+      overflow: auto;
+    }
+
+    .code-token-keyword { color: #c586c0; }
+    .code-token-string { color: #ce9178; }
+    .code-token-number { color: #b5cea8; }
+    .code-token-comment { color: #6a9955; }
+    .code-token-builtin { color: #4fc1ff; }
+
+    :root[data-theme="light"] .code-token-keyword { color: #7c3aed; }
+    :root[data-theme="light"] .code-token-string { color: #b45309; }
+    :root[data-theme="light"] .code-token-number { color: #047857; }
+    :root[data-theme="light"] .code-token-comment { color: #6b7280; }
+    :root[data-theme="light"] .code-token-builtin { color: #0369a1; }
+
+    @media (max-width: 520px) {
+      .composer__controls {
+        gap: 8px;
+      }
+
+      .composer__target-button {
+        padding: 7px 8px;
+        font-size: 11px;
+      }
+
+      .composer__run-button {
+        width: 34px;
+        height: 34px;
+        min-width: 34px;
+      }
     }
 
     .divider {
       position: relative;
-      height: 6px;
-      background: transparent;
+      height: 1px;
+      background: var(--border);
       cursor: ns-resize;
       flex: 0 0 auto;
       z-index: 10;
+      transition: background 0.2s ease;
     }
 
-    .divider::before {
-      content: '';
-      position: absolute;
-      left: 50%;
-      top: 50%;
-      transform: translate(-50%, -50%);
-      width: 60px;
-      height: 3px;
-      border-radius: 999px;
-      background: var(--border);
-      transition: background 0.2s ease, width 0.2s ease;
-    }
-
-    .divider:hover::before,
-    .divider.dragging::before {
+    .divider:hover,
+    .divider.dragging {
       background: var(--divider-hover);
-      width: 100px;
     }
 
     .statusbar {
@@ -466,12 +706,22 @@
 <body>
   <div class="app">
     <header class="titlebar" id="titlebar">
-      <div class="titlebar__title">MCDevConsole</div>
+      <div class="titlebar__title">
+        <div class="titlebar__icon">C</div>
+        <span>MCDevConsole</span>
+      </div>
       <div class="titlebar__actions">
-        <button id="simulate-stdout">模拟 STDOUT</button>
-        <button id="simulate-stderr">模拟 STDERR</button>
-        <button id="theme-toggle">切换主题</button>
-        <button id="export-logs">导出日志</button>
+        <button id="github-link" class="titlebar__button" title="GitHub">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <path d="M8 1.2a6.8 6.8 0 0 0-2.15 13.25c.34.06.46-.14.46-.33v-1.18c-1.88.41-2.27-.8-2.27-.8-.3-.75-.76-.94-.76-.94-.62-.42.04-.41.04-.41.69.05 1.06.69 1.06.69.6 1.05 1.58.74 1.96.57.06-.45.24-.74.43-.91-1.5-.17-3.07-.75-3.07-3.34 0-.74.27-1.35.69-1.82-.07-.17-.3-.86.07-1.79 0 0 .56-.18 1.84.69A6.3 6.3 0 0 1 8 4.98c.58 0 1.17.08 1.72.24 1.28-.87 1.84-.69 1.84-.69.37.93.14 1.62.07 1.79.43.47.69 1.08.69 1.82 0 2.59-1.57 3.16-3.08 3.33.25.21.47.62.47 1.26v1.39c0 .19.12.39.47.33A6.8 6.8 0 0 0 8 1.2Z"/>
+          </svg>
+        </button>
+        <button id="theme-toggle" class="titlebar__button" title="切换主题">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <circle cx="8" cy="8" r="3" fill="currentColor"/>
+            <path d="M8 1v2M8 13v2M15 8h-2M3 8h-2M12.7 3.3l-1.4 1.4M4.7 12.3l-1.4 1.4M12.7 12.7l-1.4-1.4M4.7 3.7l-1.4-1.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </button>
         <div style="flex: 1;"></div>
         <button id="titlebar-minimize" class="titlebar__button" title="最小化">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
@@ -515,18 +765,31 @@
 
         <div class="panel composer-panel" id="composer-panel">
           <div class="composer">
-            <div class="composer__toolbar">
-              <span>调试桥接：向宿主发送 JSON 指令，后续可对接 typeId 3 / 4</span>
-              <span id="bridge-status">桥接状态：浏览器模式</span>
+            <div class="composer__toolbar" id="composer-toggle">
+              <div class="composer__title">
+                <span class="composer__chevron"></span>
+                <span>Python</span>
+              </div>
+              <span id="bridge-status">已折叠</span>
             </div>
-            <textarea id="command-input" spellcheck="false">{
-  "kind": "exec",
-  "target": "client",
-  "sessionId": "device-1",
-  "code": "console.log('hello from web')"
-}</textarea>
-            <div class="composer__actions">
-              <button id="send-command">发送到宿主</button>
+            <div class="composer__body">
+              <div class="composer__controls">
+                <div class="composer__target-wrap">
+                  <div class="composer__target" id="command-target">
+                    <button type="button" class="composer__target-button active" data-target="client">客户端</button>
+                    <button type="button" class="composer__target-button" data-target="server">服务端</button>
+                  </div>
+                  <button id="send-command" class="composer__run-button" title="执行" aria-label="执行">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                      <path d="M4 3.5v9l8-4.5-8-4.5Z"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <div class="code-editor">
+                <pre class="code-editor__highlight" id="command-highlight"></pre>
+                <textarea id="command-input" class="code-editor__input" spellcheck="false">print("hello from python")</textarea>
+              </div>
             </div>
           </div>
         </div>
@@ -543,9 +806,12 @@
     const themeKey = 'mcdevconsole.theme';
     const maxLogs = 10000;
     const cleanupCount = 2500;
+    const maxVisibleLogs = 500;
     const logs = [];
     const deviceMap = new Map();
     let activeDeviceId = null;
+    let renderScheduled = false;
+    let deviceRenderScheduled = false;
 
     const initialDevices = [
       { id: 'device-1', name: '示例设备 A', online: true, endpoint: '192.168.1.23:19199', platform: 'Windows' },
@@ -590,8 +856,9 @@
       const deltaY = e.clientY - startY;
       const newLogsHeight = startLogsHeight + deltaY;
       const newComposerHeight = startComposerHeight - deltaY;
+      const composerMinHeight = composerPanel.classList.contains('expanded') ? 164 : 44;
 
-      if (newLogsHeight >= 200 && newComposerHeight >= 120) {
+      if (newLogsHeight >= 120 && newComposerHeight >= composerMinHeight) {
         logsPanel.style.flex = `0 0 ${newLogsHeight}px`;
         composerPanel.style.height = `${newComposerHeight}px`;
       }
@@ -700,10 +967,16 @@
               <span class="dot ${device.online ? '' : 'offline'}"></span>
               <span>${escapeHtml(device.name || device.id)}</span>
             </div>
-            <span class="badge">${device.online ? '在线' : '离线'}</span>
+            <span class="badge ${device.online ? 'online' : 'offline'}">${device.online ? '在线' : '离线'}</span>
           </div>
-          <div class="device__meta">${escapeHtml(device.endpoint || '未知端点')}</div>
-          <div class="device__hint">${escapeHtml(device.platform || 'Unknown')} · ${escapeHtml(device.lastSeen || '等待发现')}</div>
+          <div class="device__meta">
+            <span class="device__label">ENDP</span>
+            <span class="device__value">${escapeHtml(device.endpoint || '未知端点')}</span>
+          </div>
+          <div class="device__hint">
+            <span class="device__platform">${escapeHtml(device.platform || 'Unknown')}</span>
+            <span>${escapeHtml(device.lastSeen || '等待发现')}</span>
+          </div>
         </button>
       `).join('');
 
@@ -714,8 +987,34 @@
       });
     }
 
+    function scheduleDeviceRender() {
+      if (deviceRenderScheduled) {
+        return;
+      }
+      deviceRenderScheduled = true;
+      requestAnimationFrame(() => {
+        deviceRenderScheduled = false;
+        renderDevices();
+      });
+    }
+
+    function scheduleLogRender() {
+      if (renderScheduled) {
+        return;
+      }
+      renderScheduled = true;
+      requestAnimationFrame(() => {
+        renderScheduled = false;
+        renderLogs();
+      });
+    }
+
     function getActiveDevice() {
       return activeDeviceId ? deviceMap.get(activeDeviceId) || null : null;
+    }
+
+    function isScrolledToBottom(container, threshold = 50) {
+      return container.scrollHeight - container.scrollTop - container.clientHeight < threshold;
     }
 
     function renderLogs() {
@@ -739,10 +1038,17 @@
         return;
       }
 
-      container.innerHTML = deviceLogs.map((log) => `
+      const wasAtBottom = isScrolledToBottom(container);
+      const startIndex = Math.max(0, deviceLogs.length - maxVisibleLogs);
+      const visibleLogs = deviceLogs.slice(startIndex);
+
+      container.innerHTML = visibleLogs.map((log) => `
         <div class="log-line" data-level="${escapeHtml(log.level)}">[${escapeHtml(log.time)}] [${escapeHtml(log.level)}] ${escapeHtml(log.message)}</div>
       `).join('');
-      container.scrollTop = container.scrollHeight;
+
+      if (wasAtBottom) {
+        container.scrollTop = container.scrollHeight;
+      }
     }
 
     function trimLogsIfNeeded() {
@@ -765,20 +1071,29 @@
         message: typeof message === 'string' ? message : JSON.stringify(message)
       };
 
+      const existingDevice = deviceMap.get(deviceId);
       const device = ensureDevice({
         id: deviceId,
-        name: deviceMap.get(deviceId)?.name || deviceId,
-        online: deviceMap.get(deviceId)?.online ?? true,
-        endpoint: deviceMap.get(deviceId)?.endpoint || '未知端点',
-        platform: deviceMap.get(deviceId)?.platform || 'Unknown',
+        name: existingDevice?.name || deviceId,
+        online: existingDevice?.online ?? true,
+        endpoint: existingDevice?.endpoint || '未知端点',
+        platform: existingDevice?.platform || 'Unknown',
         lastSeen: new Date().toLocaleTimeString()
       });
 
       logs.push(entry);
       device.logs.push(entry);
       trimLogsIfNeeded();
-      renderDevices();
-      renderLogs();
+
+      if (!existingDevice) {
+        scheduleDeviceRender();
+      }
+
+      if (deviceId === activeDeviceId || (!activeDeviceId && deviceId === 'device-1')) {
+        scheduleLogRender();
+      } else {
+        document.getElementById('stats').textContent = `日志缓存：${logs.length} / ${maxLogs}`;
+      }
     }
 
     function exportLogs() {
@@ -793,13 +1108,42 @@
       addLog('INFO', '日志已导出到本地文件');
     }
 
+    function getCommandTarget() {
+      return document.querySelector('.composer__target-button.active')?.dataset.target || 'client';
+    }
+
     function updateBridgeStatus() {
-      document.getElementById('bridge-status').textContent = bridge.available
-        ? '桥接状态：WebView2 已连接'
-        : '桥接状态：浏览器模式';
+      const composerPanel = document.getElementById('composer-panel');
+      const bridgeStatus = document.getElementById('bridge-status');
+      const expanded = composerPanel.classList.contains('expanded');
+      const target = getCommandTarget() === 'server' ? '服务端' : '客户端';
+
+      bridgeStatus.textContent = expanded ? `${target} Python` : '已折叠';
+
       document.getElementById('runtime-hint').textContent = bridge.available
         ? '宿主已接管前端通信'
         : '当前运行于 Vite / 浏览器调试模式';
+    }
+
+    function highlightPython(code) {
+      const escaped = escapeHtml(code);
+      return escaped
+        .replace(/(^|\n)(\s*#.*?)(?=\n|$)/g, '$1<span class="code-token-comment">$2</span>')
+        .replace(/("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')/g, '<span class="code-token-string">$1</span>')
+        .replace(/\b(\d+(?:\.\d+)?)\b/g, '<span class="code-token-number">$1</span>')
+        .replace(/\b(def|class|if|elif|else|for|while|return|import|from|as|try|except|finally|with|lambda|pass|break|continue|in|is|not|and|or|True|False|None)\b/g, '<span class="code-token-keyword">$1</span>')
+        .replace(/\b(print|len|range|str|int|float|dict|list|set|tuple|open|type|isinstance|enumerate|json)\b/g, '<span class="code-token-builtin">$1</span>');
+    }
+
+    function syncCodeHighlight() {
+      const input = document.getElementById('command-input');
+      const highlight = document.getElementById('command-highlight');
+      if (!input || !highlight) {
+        return;
+      }
+      highlight.innerHTML = `${highlightPython(input.value)}\n`;
+      highlight.scrollTop = input.scrollTop;
+      highlight.scrollLeft = input.scrollLeft;
     }
 
     function updateMaximizeButton(isMaximized) {
@@ -874,18 +1218,20 @@
 
     function sendCommandToHost() {
       const text = document.getElementById('command-input').value.trim();
+      const target = getCommandTarget();
+      const device = getActiveDevice();
+
       if (!text) {
-        addLog('WARN', '发送已取消：输入内容为空');
+        addLog('WARN', '执行已取消：Python 代码为空');
         return;
       }
 
-      let payload;
-      try {
-        payload = JSON.parse(text);
-      } catch (error) {
-        addLog('ERROR', `JSON 解析失败：${error.message}`);
-        return;
-      }
+      const payload = {
+        kind: 'exec.python',
+        target,
+        sessionId: device?.id || activeDeviceId || 'device-1',
+        code: text
+      };
 
       const envelope = {
         kind: 'web.command',
@@ -895,26 +1241,14 @@
 
       const delivered = bridge.post(envelope);
       addLog('INFO', delivered
-        ? `已发送消息到宿主：${payload.kind || 'unknown'}`
-        : `浏览器模式模拟发送：${payload.kind || 'unknown'}`);
+        ? `已提交 ${target === 'server' ? '服务端' : '客户端'} Python 执行请求`
+        : `浏览器模式模拟执行 ${target === 'server' ? '服务端' : '客户端'} Python 代码`);
     }
 
-    function simulateStdout() {
-      handleHostMessage({
-        kind: 'log',
-        level: 'STDOUT',
-        message: '这是一条来自宿主模拟的标准输出日志。',
-        sessionId: activeDeviceId || 'device-1'
-      });
-    }
-
-    function simulateStderr() {
-      handleHostMessage({
-        kind: 'log',
-        level: 'STDERR',
-        message: '这是一条来自宿主模拟的错误输出日志。',
-        sessionId: activeDeviceId || 'device-1'
-      });
+    function toggleComposerPanel() {
+      const panel = document.getElementById('composer-panel');
+      panel.classList.toggle('expanded');
+      updateBridgeStatus();
     }
 
     function escapeHtml(value) {
@@ -952,11 +1286,35 @@
       addLog('INFO', '主题设置保存在 localStorage', 'device-1');
       addLog('INFO', '日志采用内存缓存，超过 10000 条后自动清理 25%', 'device-1');
 
+      document.getElementById('github-link').addEventListener('click', () => {
+        const delivered = bridge.post({
+          kind: 'external.open',
+          url: 'https://github.com/GitHub-Zero123/MCDevConsole',
+          timestamp: Date.now()
+        });
+
+        if (!delivered) {
+          window.open('https://github.com/GitHub-Zero123/MCDevConsole', '_blank', 'noopener');
+        }
+      });
       document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
-      document.getElementById('export-logs').addEventListener('click', exportLogs);
       document.getElementById('send-command').addEventListener('click', sendCommandToHost);
-      document.getElementById('simulate-stdout').addEventListener('click', simulateStdout);
-      document.getElementById('simulate-stderr').addEventListener('click', simulateStderr);
+      document.getElementById('composer-toggle').addEventListener('click', toggleComposerPanel);
+
+      document.querySelectorAll('.composer__target-button').forEach((button) => {
+        button.addEventListener('click', (event) => {
+          event.stopPropagation();
+          document.querySelectorAll('.composer__target-button').forEach((item) => {
+            item.classList.toggle('active', item === button);
+          });
+          updateBridgeStatus();
+        });
+      });
+
+      const commandInput = document.getElementById('command-input');
+      commandInput.addEventListener('input', syncCodeHighlight);
+      commandInput.addEventListener('scroll', syncCodeHighlight);
+      syncCodeHighlight();
 
       // 标题栏窗口控制按钮
       document.getElementById('titlebar-minimize').addEventListener('click', () => {

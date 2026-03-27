@@ -29,6 +29,15 @@ bool WebViewHost::Initialize(HWND parent_window) {
                 }
             }
 
+            // 设置 WebView2 背景色为深色，防止导航期间白屏闪烁，并让四角露出像素跟主题
+            {
+                Microsoft::WRL::ComPtr<ICoreWebView2Controller2> ctrl2;
+                if (SUCCEEDED(controller_.As(&ctrl2))) {
+                    COREWEBVIEW2_COLOR bg{ 255, 0x1a, 0x1a, 0x1a };
+                    ctrl2->put_DefaultBackgroundColor(bg);
+                }
+            }
+
             ResizeToClientArea();
             
             // 注册前端消息监听器
@@ -65,13 +74,29 @@ bool WebViewHost::Initialize(HWND parent_window) {
                             }
 
                             if (message.find(L"\"kind\":\"window.theme\"") != std::wstring::npos) {
+                                // 深色主题 --panel: #1a1a1a，浅色主题 --panel: #ffffff
+                                COLORREF color = RGB(0x1a, 0x1a, 0x1a);
+                                if (message.find(L"\"theme\":\"light\"") != std::wstring::npos) {
+                                    color = RGB(0xff, 0xff, 0xff);
+                                }
+
+                                SetBackgroundColor(color);
+
                                 if (parent_window_ != nullptr) {
-                                    // 深色主题 --panel: #1a1a1a，浅色主题 --panel: #ffffff
-                                    COLORREF color = RGB(0x1a, 0x1a, 0x1a);
-                                    if (message.find(L"\"theme\":\"light\"") != std::wstring::npos) {
-                                        color = RGB(0xff, 0xff, 0xff);
-                                    }
                                     PostMessageW(parent_window_, AppWindow::kMessageSetTitleBarColor, 0, static_cast<LPARAM>(color));
+                                }
+                                return S_OK;
+                            }
+
+                            if (message.find(L"\"kind\":\"external.open\"") != std::wstring::npos) {
+                                size_t url_start = message.find(L"\"url\":\"");
+                                if (url_start != std::wstring::npos) {
+                                    url_start += 7;
+                                    size_t url_end = message.find(L"\"", url_start);
+                                    if (url_end != std::wstring::npos) {
+                                        std::wstring url = message.substr(url_start, url_end - url_start);
+                                        ShellExecuteW(nullptr, L"open", url.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+                                    }
                                 }
                                 return S_OK;
                             }
@@ -189,6 +214,18 @@ void WebViewHost::PostJsonMessage(const std::wstring& json) const {
     }
 
     webview_->PostWebMessageAsJson(json.c_str());
+}
+
+void WebViewHost::SetBackgroundColor(COLORREF color) const {
+    if (!controller_) {
+        return;
+    }
+
+    Microsoft::WRL::ComPtr<ICoreWebView2Controller2> ctrl2;
+    if (SUCCEEDED(controller_.As(&ctrl2))) {
+        COREWEBVIEW2_COLOR bg{ 255, GetRValue(color), GetGValue(color), GetBValue(color) };
+        ctrl2->put_DefaultBackgroundColor(bg);
+    }
 }
 
 bool WebViewHost::IsReady() const noexcept {

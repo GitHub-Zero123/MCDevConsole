@@ -22,6 +22,7 @@ public:
     void NavigateToString(const std::wstring& html) const;
     void NavigateToFile(const std::wstring& file_path) const;
     void PostJsonMessage(const std::wstring& json) const;
+    void SetBackgroundColor(COLORREF color) const;
 
     [[nodiscard]] bool IsReady() const noexcept;
 

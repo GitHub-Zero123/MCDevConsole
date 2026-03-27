@@ -47,6 +47,11 @@ bool AppWindow::Create(HINSTANCE instance, int show_command) {
     MARGINS margins{ -1, -1, -1, -1 };
     DwmExtendFrameIntoClientArea(hwnd_, &margins);
 
+    // 设置初始 DWM 深色模式属性（深色主题）
+    // DWMWA_USE_IMMERSIVE_DARK_MODE = 20
+    BOOL use_dark = TRUE;
+    DwmSetWindowAttribute(hwnd_, 20, &use_dark, sizeof(use_dark));
+
     // 强制刷新窗口框架，立即应用 DWM 扩展效果
     SetWindowPos(hwnd_, nullptr, 0, 0, 0, 0,
                  SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
@@ -156,6 +161,14 @@ void AppWindow::SetTitleBarColor(COLORREF color) noexcept {
             DeleteObject(background_brush_);
         }
         background_brush_ = new_brush;
+        
+        // 根据颜色判断是否为深色主题（#1a1a1a 深色，#ffffff 浅色）
+        bool is_dark = (color == RGB(0x1a, 0x1a, 0x1a));
+        
+        // 设置 DWM 深色模式属性，让系统边框和标题栏跟随主题
+        // DWMWA_USE_IMMERSIVE_DARK_MODE = 20
+        BOOL use_dark = is_dark ? TRUE : FALSE;
+        DwmSetWindowAttribute(hwnd_, 20, &use_dark, sizeof(use_dark));
         
         SetWindowPos(hwnd_, nullptr, 0, 0, 0, 0,
                      SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
@@ -278,6 +291,13 @@ LRESULT AppWindow::HandleMessage(UINT message, WPARAM w_param, LPARAM l_param) {
     case WM_SIZE:
         if (webview_host_) {
             webview_host_->ResizeToClientArea();
+        }
+        // 回发窗口状态给前端，更新最大化按钮
+        if (webview_host_) {
+            std::wstring state = L"{\"kind\":\"window.state\",\"maximized\":";
+            state += IsZoomed(hwnd_) ? L"true" : L"false";
+            state += L"}";
+            webview_host_->PostJsonMessage(state);
         }
         return 0;
     case WM_DESTROY:
