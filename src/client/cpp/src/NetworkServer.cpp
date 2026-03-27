@@ -430,11 +430,6 @@ void NetworkServer::TcpClientThread(std::shared_ptr<ClientSession> session) {
 
             const int err = WSAGetLastError();
             if (err == WSAETIMEDOUT || err == WSAEWOULDBLOCK) {
-                const unsigned long long now = GetTickCount64();
-                const unsigned long long last = session->last_activity_tick.load();
-                if (now > last && (now - last) > 5000) {
-                    break;
-                }
                 continue;
             }
 
