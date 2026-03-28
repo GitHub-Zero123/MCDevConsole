@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <thread>
 #include <windows.h>
 
 #include "MCDevConsole/NetworkServer.h"
@@ -12,6 +13,7 @@ class AppWindow {
 public:
     static constexpr UINT kMessageSetTitleBarColor = WM_APP + 1;
     static constexpr UINT kMessageDispatchWebMessage = WM_APP + 2;
+    static constexpr UINT kMessageNetworkStartupResult = WM_APP + 3;
 
     AppWindow() = default;
     AppWindow(const AppWindow&) = delete;

@@ -69,8 +69,15 @@ std::string WideToUtf8(const std::wstring& value) {
 
 } // namespace
 
+void WebViewHost::ReplaySessionsIfReady() const {
+    if (frontend_ready_ && network_server_ != nullptr) {
+        network_server_->ReplaySessionsToFrontend();
+    }
+}
+
 void WebViewHost::SetNetworkServer(NetworkServer* network_server) noexcept {
     network_server_ = network_server;
+    ReplaySessionsIfReady();
 }
 
 bool WebViewHost::Initialize(HWND parent_window) {
@@ -190,9 +197,8 @@ bool WebViewHost::Initialize(HWND parent_window) {
                             }
 
                             if (message.find(L"\"kind\":\"web.ready\"") != std::wstring::npos) {
-                                if (network_server_ != nullptr) {
-                                    network_server_->ReplaySessionsToFrontend();
-                                }
+                                frontend_ready_ = true;
+                                ReplaySessionsIfReady();
                                 return S_OK;
                             }
                         }

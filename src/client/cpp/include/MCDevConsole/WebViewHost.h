@@ -31,8 +31,11 @@ public:
     [[nodiscard]] bool IsReady() const noexcept;
 
 private:
+    void ReplaySessionsIfReady() const;
+
     HWND parent_window_ = nullptr;
     NetworkServer* network_server_ = nullptr;
+    bool frontend_ready_ = false;
     Microsoft::WRL::ComPtr<ICoreWebView2Controller> controller_;
     Microsoft::WRL::ComPtr<ICoreWebView2> webview_;
 };

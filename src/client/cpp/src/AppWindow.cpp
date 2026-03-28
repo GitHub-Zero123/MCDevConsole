@@ -3,6 +3,9 @@
 #include <windowsx.h>
 #include <dwmapi.h>
 
+#include <string>
+#include <thread>
+
 #pragma comment(lib, "dwmapi.lib")
 
 namespace MCDevConsole {
@@ -71,39 +74,35 @@ bool AppWindow::Create(HINSTANCE instance, int show_command) {
 
     network_server_ = std::make_unique<NetworkServer>();
     webview_host_->SetNetworkServer(network_server_.get());
-    
-    // 检查端口占用
-    bool udp_in_use = NetworkServer::IsPortInUse(NetworkServer::kDiscoveryPort);
-    bool tcp_in_use = NetworkServer::IsPortInUse(NetworkServer::kTcpPort);
-    
-    if (udp_in_use || tcp_in_use) {
-        std::wstring error_msg = L"端口已被占用，请稍后重试\n\n";
-        if (udp_in_use) {
-            error_msg += L"UDP 端口 18232 已被占用\n";
+    webview_host_->PostJsonMessage(L"{\"kind\":\"log\",\"level\":\"INFO\",\"message\":\"NetworkServer 正在后台启动...\"}");
+
+    const HWND window_handle = hwnd_;
+    const NetworkServer* server_ptr = network_server_.get();
+    std::thread([window_handle, server_ptr]() {
+        auto* result = new std::wstring();
+
+        const bool udp_in_use = NetworkServer::IsPortInUse(NetworkServer::kDiscoveryPort);
+        const bool tcp_in_use = NetworkServer::IsPortInUse(NetworkServer::kTcpPort);
+
+        if (udp_in_use || tcp_in_use) {
+            *result = L"{\"kind\":\"network.startup\",\"ok\":false,\"reason\":\"port_in_use\",\"message\":\"端口已被占用\",\"udpInUse\":";
+            *result += udp_in_use ? L"true" : L"false";
+            *result += L",\"tcpInUse\":";
+            *result += tcp_in_use ? L"true" : L"false";
+            *result += L"}";
+        } else {
+            const bool started = const_cast<NetworkServer*>(server_ptr)->Start(nullptr);
+            if (started) {
+                *result = L"{\"kind\":\"network.startup\",\"ok\":true,\"message\":\"NetworkServer 已启动：UDP 18232 / TCP 18233\"}";
+            } else {
+                *result = L"{\"kind\":\"network.startup\",\"ok\":false,\"reason\":\"start_failed\",\"message\":\"NetworkServer 启动失败：TCP/UDP 监听未建立\"}";
+            }
         }
-        if (tcp_in_use) {
-            error_msg += L"TCP 端口 18233 已被占用\n";
+
+        if (!PostMessageW(window_handle, kMessageNetworkStartupResult, reinterpret_cast<WPARAM>(server_ptr), reinterpret_cast<LPARAM>(result))) {
+            delete result;
         }
-
-        MessageBoxW(hwnd_, error_msg.c_str(), L"MCDevConsole", MB_OK | MB_ICONWARNING);
-
-        webview_host_->SetNetworkServer(nullptr);
-        network_server_.reset();
-        webview_host_.reset();
-
-        if (hwnd_ != nullptr) {
-            DestroyWindow(hwnd_);
-            hwnd_ = nullptr;
-        }
-
-        return false;
-    } else if (!network_server_->Start(webview_host_.get())) {
-        webview_host_->SetNetworkServer(nullptr);
-        webview_host_->PostJsonMessage(L"{\"kind\":\"log\",\"level\":\"ERROR\",\"message\":\"NetworkServer 启动失败：TCP/UDP 监听未建立\"}");
-        network_server_.reset();
-    } else {
-        webview_host_->PostJsonMessage(L"{\"kind\":\"log\",\"level\":\"INFO\",\"message\":\"NetworkServer 已启动：UDP 18232 / TCP 18233\"}");
-    }
+    }).detach();
 
     return true;
 }
@@ -291,6 +290,44 @@ LRESULT AppWindow::HandleMessage(UINT message, WPARAM w_param, LPARAM l_param) {
         auto* payload = reinterpret_cast<std::wstring*>(l_param);
         if (payload != nullptr && webview_host_) {
             webview_host_->PostJsonMessageNow(*payload);
+        }
+        delete payload;
+        return 0;
+    }
+    case kMessageNetworkStartupResult: {
+        auto* payload = reinterpret_cast<std::wstring*>(l_param);
+        const auto* server_ptr = reinterpret_cast<NetworkServer*>(w_param);
+        if (payload != nullptr) {
+            const bool startup_ok = payload->find(L"\"ok\":true") != std::wstring::npos;
+            const bool port_in_use = payload->find(L"\"reason\":\"port_in_use\"") != std::wstring::npos;
+
+            if (!network_server_ || network_server_.get() != server_ptr) {
+                delete payload;
+                return 0;
+            }
+
+            if (webview_host_) {
+                if (startup_ok) {
+                    webview_host_->SetNetworkServer(network_server_.get());
+                    network_server_->SetWebViewHost(webview_host_.get());
+                }
+                webview_host_->PostJsonMessageNow(*payload);
+            }
+
+            if (!startup_ok) {
+                network_server_.reset();
+            }
+
+            if (port_in_use) {
+                std::wstring error_msg = L"端口已被占用，请稍后重试\n\n";
+                if (payload->find(L"\"udpInUse\":true") != std::wstring::npos) {
+                    error_msg += L"UDP 端口 18232 已被占用\n";
+                }
+                if (payload->find(L"\"tcpInUse\":true") != std::wstring::npos) {
+                    error_msg += L"TCP 端口 18233 已被占用\n";
+                }
+                MessageBoxW(hwnd_, error_msg.c_str(), L"MCDevConsole", MB_OK | MB_ICONWARNING);
+            }
         }
         delete payload;
         return 0;

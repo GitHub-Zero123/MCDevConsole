@@ -245,6 +245,10 @@ bool NetworkServer::Start(WebViewHost* webview_host) {
     return true;
 }
 
+void NetworkServer::SetWebViewHost(WebViewHost* webview_host) noexcept {
+    webview_host_ = webview_host;
+}
+
 void NetworkServer::Stop() {
     if (!running_.load()) {
         return;

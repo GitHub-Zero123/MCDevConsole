@@ -41,6 +41,7 @@ public:
     NetworkServer& operator=(NetworkServer&&) = delete;
 
     bool Start(WebViewHost* webview_host);
+    void SetWebViewHost(WebViewHost* webview_host) noexcept;
     void Stop();
     void ReplaySessionsToFrontend();
 
