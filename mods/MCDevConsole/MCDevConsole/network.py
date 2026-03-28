@@ -7,7 +7,7 @@
 - 支持非阻塞连接和通信
 - 提供 stdout/stderr 重定向方法
 - 提供连接状态检查方法
- """
+"""
 
 from .ub import *
 import struct
@@ -26,6 +26,18 @@ DISCOVERY_RESPONSE_PREFIX = "MCDEVCONSOLE_TCP"
 DISCOVERY_INTERVAL = 0.3  # UDP 发现间隔（秒）
 RECONNECT_INTERVAL = 0.3  # TCP 重连间隔（秒）
 SOCKET_TIMEOUT = 0.05     # 套接字超时（秒）
+
+def GET_CURRENT_SUBNET_BROADCAST_IP():
+    """获取当前网段广播地址（x.x.x.255）"""
+    # type: () -> str | None
+    try:
+        localIp = socket.gethostbyname(socket.gethostname())
+        parts = str(localIp).split(".")
+        if len(parts) == 4 and parts[0] != "127":
+            return "%s.%s.%s.255" % (parts[0], parts[1], parts[2])
+    except Exception:
+        pass
+    return None
 
 def U16_BE(b):
     """ 大端序读取 2 字节无符号整数 """
@@ -171,6 +183,9 @@ class NETSystem(object):
         print("[NETSystem] UDP 发现线程已启动")
         
         udp_sock = None
+        targetIp = "255.255.255.255"
+        if sys.platform != "win32":
+            targetIp = GET_CURRENT_SUBNET_BROADCAST_IP() or targetIp
         try:
             udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             udp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
@@ -188,7 +203,7 @@ class NETSystem(object):
                 if current_time - self.lastDiscoveryTime >= DISCOVERY_INTERVAL:
                     try:
                         # 发送 UDP 广播发现包
-                        udp_sock.sendto(DISCOVERY_BROADCAST.encode("utf-8"), ("255.255.255.255", DISCOVERY_PORT))
+                        udp_sock.sendto(DISCOVERY_BROADCAST.encode("utf-8"), (targetIp, DISCOVERY_PORT))
                         
                         # 尝试接收响应
                         try:
