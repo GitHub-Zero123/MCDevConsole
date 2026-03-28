@@ -7,7 +7,8 @@ from . import logging
 from .ub import mCompile, mEval
 
 _SYSTEM_REF = 0
-_NET_SYSTEM = network.NETSystem()
+_NET_SYSTEM = network.NETSystem.getInstance()
+_ENABLE_LOG_TEST = True
 
 def sendLogHandler(logLines):
     if not _NET_SYSTEM.isConnected():
@@ -72,7 +73,7 @@ _NET_SYSTEM.updateHandlers({
 })
 
 @Mod.Binding(name = "MCDevConsole", version = "1.0.0")
-class MyMod(object):
+class MCDevConsole(object):
     @Mod.InitServer()
     def serverInit(self):
         serverApi.GetEngineCompFactory()    # safe initialize
@@ -82,6 +83,15 @@ class MyMod(object):
     def clientInit(self):
         clientApi.GetEngineCompFactory()
         ADD_SYSTEM_REF()
+        if not _ENABLE_LOG_TEST:
+            return
+
+        from .loggingSystem import LoggingSystem
+        clientApi.RegisterSystem(
+            self.__class__.__name__,
+            LoggingSystem.__name__, 
+            LoggingSystem.__module__ + "." + LoggingSystem.__name__
+        )
 
     @Mod.DestroyServer()
     def serverDestroy(self):

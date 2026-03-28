@@ -10,6 +10,7 @@
 """
 
 from .ub import *
+from .containers import CachedLists
 import struct
 import threading
 import time
@@ -28,14 +29,15 @@ RECONNECT_INTERVAL = 0.3  # TCP 重连间隔（秒）
 SOCKET_TIMEOUT = 0.05     # 套接字超时（秒）
 
 def GET_CURRENT_SUBNET_BROADCAST_IP():
-    """获取当前网段广播地址（x.x.x.255）"""
     # type: () -> str | None
+    """获取当前网段广播地址（x.x.x.255）
+    """
     try:
         localIp = socket.gethostbyname(socket.gethostname())
         parts = str(localIp).split(".")
         if len(parts) == 4 and parts[0] != "127":
             return "%s.%s.%s.255" % (parts[0], parts[1], parts[2])
-    except Exception:
+    except Exception as e:
         pass
     return None
 
@@ -80,7 +82,18 @@ class NETSystem(object):
         self.discoveryThread = None
         self.connectedHandler = None
         self.discoveryEnabled = True  # 控制 UDP 发现是否启用
+        self.loggingCached = CachedLists()
     
+    @staticmethod
+    def getInstance():
+        """ 获取 NETSystem 单例实例 """
+        return GET_NET_SYSTEM()
+
+    def logInfo(self, message):
+        """ 记录日志到缓存列表，供外部获取 """
+        # type: (str) -> None
+        self.loggingCached.append(str(message))
+
     def setConnectedHandler(self, handler):
         """ 设置连接成功回调函数，连接成功时会调用 handler() """
         # type: (callable) -> None
@@ -135,7 +148,7 @@ class NETSystem(object):
                     return True
             return False
         except Exception as e:
-            print("[NETSystem] 发送日志失败: " + str(e))
+            self.logInfo("[NETSystem] 发送日志失败: " + str(e))
             return False
     
     def start(self):
@@ -155,7 +168,7 @@ class NETSystem(object):
         self.listenThread.daemon = True
         self.listenThread.start()
         
-        print("[NETSystem] NET 系统已启动，开始 UDP 发现...")
+        self.logInfo("[NETSystem] NET 系统已启动，开始 UDP 发现...")
     
     def close(self):
         """ 关闭 NET 系统 """
@@ -176,16 +189,18 @@ class NETSystem(object):
             except:
                 pass
         
-        print("[NETSystem] 已关闭")
+        self.logInfo("[NETSystem] 已关闭")
     
     def _threadDiscoveryLoop(self):
         """ 内部线程：UDP 发现循环 """
-        print("[NETSystem] UDP 发现线程已启动")
+        self.logInfo("[NETSystem] UDP 发现线程已启动")
         
         udp_sock = None
         targetIp = "255.255.255.255"
         if sys.platform != "win32":
+            self.logInfo("[NETSystem] 尝试获取当前网段广播地址...")
             targetIp = GET_CURRENT_SUBNET_BROADCAST_IP() or targetIp
+        self.logInfo("[NETSystem] 使用广播地址: " + targetIp)
         try:
             udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             udp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
@@ -220,14 +235,13 @@ class NETSystem(object):
                                         self.serverHost = serverIp
                                         self.serverPort = serverPort
                                         self.serverIp = serverIp  # 直接缓存 IP，避免 DNS 查询
-                                    
-                                    # print(serverIp)
-                                    # print("[NETSystem] 发现服务器: " + serverIp + ":" + str(serverPort))
+
+                                    self.logInfo("[NETSystem] 发现服务器: " + serverIp + ":" + str(serverPort))
                         except socket.timeout:
                             pass
                     
                     except Exception as e:
-                        print("[NETSystem] UDP 发现异常: " + str(e))
+                        self.logInfo("[NETSystem] UDP 发现异常: " + str(e))
                         # import traceback
                         # traceback.print_exc()
                     
@@ -236,18 +250,18 @@ class NETSystem(object):
                     time.sleep(0.01)
         
         except Exception as e:
-            print("[NETSystem] UDP 发现线程异常: " + str(e))
+            self.logInfo("[NETSystem] UDP 发现线程异常: " + str(e))
         finally:
             if udp_sock:
                 try:
                     udp_sock.close()
                 except:
                     pass
-            print("[NETSystem] UDP 发现线程已退出")
+            self.logInfo("[NETSystem] UDP 发现线程已退出")
     
     def _threadListenLoop(self):
         """ 内部线程：TCP 监听循环 - 周期性尝试连接和接收数据 """
-        print("[NETSystem] TCP 监听线程已启动")
+        self.logInfo("[NETSystem] TCP 监听线程已启动")
         
         while True:
             with self.mLock:
@@ -272,7 +286,7 @@ class NETSystem(object):
                     time.sleep(0.1)
                     continue
             
-            # 接收数据 - 关键修复：在锁外进行 recv() 操作
+            # 接收数据
             sock = None
             with self.mLock:
                 if self.sock and self.connected:
@@ -288,7 +302,7 @@ class NETSystem(object):
                             self.connected = False
                             self.sock = None
                             self.discoveryEnabled = True  # 重新启用 UDP 发现，以便自动重新连接
-                        print("[NETSystem] 服务器断开连接")
+                        self.logInfo("[NETSystem] 服务器断开连接")
                         continue
                     
                     with self.mLock:
@@ -304,7 +318,7 @@ class NETSystem(object):
                         self.connected = False
                         self.sock = None
                         self.discoveryEnabled = True  # 重新启用 UDP 发现，以便自动重新连接
-                    print("[NETSystem] 套接字错误: " + str(e))
+                    self.logInfo("[NETSystem] 套接字错误: " + str(e))
             else:
                 # 没有连接，短暂休眠避免忙轮询
                 time.sleep(0.01)
@@ -317,7 +331,7 @@ class NETSystem(object):
                     pass
                 self.sock = None
         
-        print("[NETSystem] TCP 监听线程已退出")
+        self.logInfo("[NETSystem] TCP 监听线程已退出")
     
     def _tryConnect(self, host, port):
         """ 尝试连接到服务器 """
@@ -413,7 +427,7 @@ class NETSystem(object):
                 if self.sock:
                     self.sock.sendall(bytes(packet))
         except Exception as e:
-            print("[NETSystem] 握手失败: " + str(e))
+            self.logInfo("[NETSystem] 握手失败: " + str(e))
     
     def _processRecvBuffer(self):
         """处理接收缓冲区中的数据包"""
@@ -425,7 +439,7 @@ class NETSystem(object):
                 
                 # 检查数据长度合法性
                 if dataLength > 1024 * 1024:
-                    print("[NETSystem] 数据包过大，丢弃")
+                    self.logInfo("[NETSystem] 数据包过大，丢弃")
                     self.recvBuffer = bytearray()
                     break
                 
@@ -448,14 +462,14 @@ class NETSystem(object):
                     try:
                         handler(data)
                     except Exception as e:
-                        print("[NETSystem] 处理器异常: " + str(e))
+                        self.logInfo("[NETSystem] 处理器异常: " + str(e))
                         import traceback
                         traceback.print_exc()
                 else:
-                    print("[NETSystem] 未知的 TypeID 数据包: " + str(typeID))
+                    self.logInfo("[NETSystem] 未知的 TypeID 数据包: " + str(typeID))
             
             except Exception as e:
-                print("[NETSystem] 处理数据包异常: " + str(e))
+                self.logInfo("[NETSystem] 处理数据包异常: " + str(e))
                 import traceback
                 traceback.print_exc()
                 break
