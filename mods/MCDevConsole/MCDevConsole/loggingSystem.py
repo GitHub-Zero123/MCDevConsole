@@ -29,6 +29,7 @@ class LoggingSystem(ClientSystem):
             text = self._normalizeText(msg)
             if text:
                 lines.append(text)
+                print(text)
 
         if not lines:
             self._showLeftCornerNotify(["[MCDevConsole] 暂无可显示日志"])

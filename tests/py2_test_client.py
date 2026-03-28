@@ -23,6 +23,25 @@ from datetime import datetime
 
 PY2 = sys.version_info[0] == 2
 
+def GET_CURRENT_SUBNET_BROADCAST_IP():
+    # type: () -> str | None
+    """获取当前网段广播地址（x.x.x.255）
+    """
+    ip = None
+    try:
+        import socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+    finally:
+        s.close()
+    if not ip:
+        return None
+    parts = ip.split(".")
+    if len(parts) != 4:
+        return None
+    return "%s.%s.%s.255" % (parts[0], parts[1], parts[2])
+
 if PY2:
     text_type = unicode
     binary_type = str
@@ -108,9 +127,10 @@ class MCDevConsoleClient:
         
         safe_print("[发现] 开始 UDP 广播发现，目标端口 {0}".format(DISCOVERY_PORT))
         
+        broadcast_ip = GET_CURRENT_SUBNET_BROADCAST_IP()
         while self.running and not self.connected:
             try:
-                udp_sock.sendto(b'MCDEVCONSOLE_DISCOVER', ('255.255.255.255', DISCOVERY_PORT))
+                udp_sock.sendto(b'MCDEVCONSOLE_DISCOVER', (broadcast_ip, DISCOVERY_PORT))
                 
                 try:
                     data, addr = udp_sock.recvfrom(512)

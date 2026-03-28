@@ -15,6 +15,7 @@ import struct
 import threading
 import time
 import json
+import traceback
 
 TYPE_STDOUT_LOG = 1
 TYPE_STDERR_LOG = 2
@@ -32,14 +33,22 @@ def GET_CURRENT_SUBNET_BROADCAST_IP():
     # type: () -> str | None
     """获取当前网段广播地址（x.x.x.255）
     """
-    try:
-        localIp = socket.gethostbyname(socket.gethostname())
-        parts = str(localIp).split(".")
-        if len(parts) == 4 and parts[0] != "127":
-            return "%s.%s.%s.255" % (parts[0], parts[1], parts[2])
-    except Exception as e:
-        pass
-    return None
+    import mod.client.extraClientApi as clientApi
+    ip = clientApi.GetIP()  # 神笔网易限制必须通过这个接口获取 IP
+    # ip = None
+    # try:
+    #     import socket
+    #     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    #     s.connect(("8.8.8.8", 80))
+    #     ip = s.getsockname()[0]
+    # finally:
+    #     s.close()
+    if not ip:
+        return None
+    parts = ip.split(".")
+    if len(parts) != 4:
+        return None
+    return "%s.%s.%s.255" % (parts[0], parts[1], parts[2])
 
 def U16_BE(b):
     """ 大端序读取 2 字节无符号整数 """
@@ -93,6 +102,33 @@ class NETSystem(object):
         """ 记录日志到缓存列表，供外部获取 """
         # type: (str) -> None
         self.loggingCached.append(str(message))
+
+    def _formatExceptionLines(self, e):
+        # type: (Exception) -> list
+        """将异常格式化为按行列表，保留 traceback 原始行内容"""
+        try:
+            tbText = traceback.format_exc()
+            if tbText:
+                lines = tbText.splitlines()
+                if lines:
+                    return lines
+            # 没有 traceback 时退化为异常简述
+            exType = e.__class__.__name__
+            return ["%s: %s" % (exType, str(e))]
+        except Exception as inner:
+            return ["exception-format-error: %s" % str(inner), "exception-fallback: %s" % str(e)]
+
+    def _logException(self, prefix, e):
+        # type: (str, Exception) -> None
+        """ 输出详细异常日志（按行） """
+        try:
+            lines = self._formatExceptionLines(e)
+            self.logInfo(prefix)
+            for item in lines:
+                self.logInfo("[NETSystem] " + item)
+        except Exception as inner:
+            self.logInfo(prefix + " (detail failed: " + str(inner) + ")")
+            self.logInfo("[NETSystem] " + str(e))
 
     def setConnectedHandler(self, handler):
         """ 设置连接成功回调函数，连接成功时会调用 handler() """
@@ -202,7 +238,7 @@ class NETSystem(object):
             targetIp = GET_CURRENT_SUBNET_BROADCAST_IP() or targetIp
         self.logInfo("[NETSystem] 使用广播地址: " + targetIp)
         try:
-            udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
             udp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
             udp_sock.settimeout(DISCOVERY_INTERVAL)
             
@@ -241,16 +277,14 @@ class NETSystem(object):
                             pass
                     
                     except Exception as e:
-                        self.logInfo("[NETSystem] UDP 发现异常: " + str(e))
-                        # import traceback
-                        # traceback.print_exc()
+                        self._logException("[NETSystem] UDP 发现异常", e)
                     
                     self.lastDiscoveryTime = current_time
                 else:
                     time.sleep(0.01)
         
         except Exception as e:
-            self.logInfo("[NETSystem] UDP 发现线程异常: " + str(e))
+            self._logException("[NETSystem] UDP 发现线程异常", e)
         finally:
             if udp_sock:
                 try:
